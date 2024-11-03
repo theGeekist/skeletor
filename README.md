@@ -32,7 +32,7 @@ cargo install skeletor
 ### Homebrew (macOS)
 
 ```bash
-brew tap yourusername/skeletor
+brew tap jasonnathan/skeletor
 brew install skeletor
 ```
 
