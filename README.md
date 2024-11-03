@@ -21,25 +21,11 @@ cd skeletor
 cargo install --path .
 ```
 
-### Using Cargo
-
-```bash
-cargo install skeletor
-```
-
-*(Note: You need to publish your crate to [crates.io](https://crates.io/) for this to work.)*
-
 ### Homebrew (macOS)
 
 ```bash
 brew tap jasonnathan/skeletor
 brew install skeletor
-```
-
-### Chocolatey (Windows)
-
-```bash
-choco install skeletor
 ```
 
 ## Usage
