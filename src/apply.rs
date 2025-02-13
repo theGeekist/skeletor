@@ -54,7 +54,6 @@ pub fn run_apply(matches: &ArgMatches) -> Result<(), SkeletorError> {
 mod tests {
     use clap::{Arg, ArgAction, Command};
 
-
     #[test]
     fn test_parse_arguments_with_overwrite_apply() {
         let args = vec![

@@ -16,8 +16,8 @@ echo "🔄 Updating Cargo.toml..."
 sed -i.bak "s/^version = \".*\"/version = \"${NEW_VERSION}\"/" Cargo.toml
 rm Cargo.toml.bak
 
-echo "🔄 Updating version in main.rs..."
-sed -i.bak "s/clap::Command::new(\"skeletor\").version(\".*\")/clap::Command::new(\"skeletor\").version(\"${NEW_VERSION}\")/" src/main.rs
+echo "🔄 Updating version in src/main.rs..."
+sed -i.bak "s/Command::new(\"Skeletor\")\.version(\"[0-9.]*\")/Command::new(\"Skeletor\").version(\"${NEW_VERSION}\")/" src/main.rs
 rm src/main.rs.bak
 
 # Commit changes
