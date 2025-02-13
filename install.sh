@@ -1,9 +1,3 @@
-
----
-
-**New File: install.sh**
-
-```bash
 #!/usr/bin/env bash
 # filepath: /Users/jasonnathan/Repos/skeletor/install.sh
 set -e

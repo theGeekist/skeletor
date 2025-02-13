@@ -64,5 +64,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: packaged-binary-${{ matrix.os }}
-          # Use a glob pattern to pick up any file that matches the naming scheme.
-          path: skeletor-${{ matrix.os }}-${{ matrix.target }}.*
+          path: |
+            skeletor-*.zip
+            skeletor-*.tar.gz
