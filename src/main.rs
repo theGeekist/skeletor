@@ -14,7 +14,7 @@ use clap::{Arg, ArgAction, Command};
 /// Build the CLI interface with three subcommands: `apply`, `snapshot` and `info`
 fn parse_arguments() -> clap::ArgMatches {
     Command::new("Skeletor")
-        .version("2.2.11")
+        .version("2.2.12")
         .author("Jason Joseph Nathan")
         .about("A super optimised Rust scaffolding tool with snapshot annotations")
         .subcommand_required(true)
