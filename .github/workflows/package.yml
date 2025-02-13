@@ -39,18 +39,30 @@ jobs:
         run: |
           BIN_NAME="skeletor"
           OS="${{ matrix.os }}"
-          ARCH=$(uname -m)
+          TARGET="${{ matrix.target }}"
           if [ "${OS}" == "windows-latest" ]; then
-              BIN_NAME+=".exe"
-              zip ${BIN_NAME}-${OS}-${ARCH}.zip -j target/${{ matrix.target }}/release/${BIN_NAME}
+              BIN_NAME="${BIN_NAME}.exe"
+              ARTIFACT_NAME="${BIN_NAME}-${OS}-${TARGET}.zip"
+              # Check if zip is installed; if not, try installing via chocolatey.
+              if ! command -v zip > /dev/null 2>&1; then
+                  echo "zip command not found."
+                  if command -v choco > /dev/null 2>&1; then
+                      echo "Installing zip via chocolatey..."
+                      choco install zip -y
+                  else
+                      echo "zip is not installed and cannot be installed automatically."
+                      exit 1
+                  fi
+              fi
+              zip "${ARTIFACT_NAME}" -j "target/${TARGET}/release/${BIN_NAME}"
           else
-              tar -czf ${BIN_NAME}-${OS}-${ARCH}.tar.gz -C target/${{ matrix.target }}/release ${BIN_NAME}
+              ARTIFACT_NAME="${BIN_NAME}-${OS}-${TARGET}.tar.gz"
+              tar -czf "${ARTIFACT_NAME}" -C "target/${TARGET}/release" "${BIN_NAME}"
           fi
-
+          echo "Created ${ARTIFACT_NAME}"
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: packaged-binary-${{ matrix.os }}
-          path: |
-            skeletor-${{ matrix.os }}-$(uname -m).tar.gz
-            skeletor-${{ matrix.os }}-$(uname -m).zip
+          # Use a glob pattern to pick up any file that matches the naming scheme.
+          path: skeletor-${{ matrix.os }}-${{ matrix.target }}.*
