@@ -1,32 +1,37 @@
 #!/usr/bin/env bash
-set -e
+set -e  # Exit immediately on error
 
-REPO="jasonnathan/skeletor"
-HOMEBREW_TAP="jasonnathan/homebrew-tap"
-VERSION="$1"
-
-if [ -z "$VERSION" ]; then
-  echo "Usage: $0 <version>"
+# Get new version number
+if [ -z "$1" ]; then
+  echo "Usage: $0 <new_version>"
   exit 1
 fi
+NEW_VERSION="$1"
 
-# Fetch latest release assets
-echo "🔍 Fetching release assets for v$VERSION..."
-wget -q "https://github.com/$REPO/releases/download/v$VERSION/skeletor-macos-latest-x86_64-apple-darwin.tar.gz"
+# Ensure we are on main branch and up to date
+git checkout main
+git pull origin main
 
-echo "🔢 Calculating SHA256 checksum..."
-CHECKSUM=$(shasum -a 256 skeletor-macos-latest-x86_64-apple-darwin.tar.gz | awk '{print $1}')
-rm skeletor-macos-latest-x86_64-apple-darwin.tar.gz
+echo "🔄 Updating Cargo.toml..."
+sed -i.bak "s/^version = \".*\"/version = \"${NEW_VERSION}\"/" Cargo.toml
+rm Cargo.toml.bak
 
-echo "🔄 Updating skeletor.rb..."
-sed -i.bak "s|url \".*\"|url \"https://github.com/$REPO/releases/download/v$VERSION/skeletor-macos-latest-x86_64-apple-darwin.tar.gz\"|" skeletor.rb
-sed -i.bak "s|sha256 \".*\"|sha256 \"$CHECKSUM\"|" skeletor.rb
-rm skeletor.rb.bak
+echo "🔄 Updating version in main.rs..."
+sed -i.bak "s/clap::Command::new(\"skeletor\").version(\".*\")/clap::Command::new(\"skeletor\").version(\"${NEW_VERSION}\")/" src/main.rs
+rm src/main.rs.bak
 
-# Commit & push update
-echo "📦 Committing updated Homebrew formula..."
-git add skeletor.rb
-git commit -m "Update Skeletor to v$VERSION"
+# Commit changes
+echo "📦 Committing version bump..."
+git add Cargo.toml src/main.rs
+git commit -m "Release v${NEW_VERSION}"
+
+# Create git tag
+echo "🏷️ Creating tag v${NEW_VERSION}..."
+git tag "v${NEW_VERSION}"
+
+# Push changes and tag
+echo "🚀 Pushing changes & tag..."
 git push origin main
+git push origin "v${NEW_VERSION}"
 
-echo "✅ Homebrew formula updated!"
+echo "✅ Version bump complete! GitHub Actions will now build and release the binaries."
