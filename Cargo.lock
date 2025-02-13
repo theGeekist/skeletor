@@ -539,6 +539,7 @@ dependencies = [
  "env_logger",
  "globset",
  "indicatif",
+ "lazy_static",
  "linked-hash-map",
  "log",
  "serde",
