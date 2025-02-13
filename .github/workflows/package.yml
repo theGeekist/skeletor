@@ -36,7 +36,7 @@ jobs:
       - name: Install zip (Windows)
         if: matrix.os == 'windows-latest'
         run: choco install zip -y
-        
+
       - name: Package binary
         shell: bash
         run: |
@@ -62,9 +62,3 @@ jobs:
           files: ${{ env.ARTIFACT_NAME }}
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
-
-      - name: Generate SHA256 Checksum
-        shell: bash
-        run: |
-          echo "SHA256 Checksums:"
-          sha256sum ${{ env.ARTIFACT_NAME }}
