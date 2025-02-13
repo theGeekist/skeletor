@@ -12,8 +12,10 @@ use std::time::Instant;
 use thiserror::Error;
 use yaml_rust::{Yaml, YamlEmitter, YamlLoader};
 
-/// For timestamp formatting, we use chrono.
+// For timestamp formatting.
 use chrono::Utc;
+// For glob-style ignoring.
+use globset::{Glob, GlobSet, GlobSetBuilder};
 
 #[derive(Debug, Error)]
 enum SkeletorError {
@@ -35,7 +37,7 @@ enum Task {
 /// Build the CLI interface with three subcommands: `apply`, `snapshot` and `info`
 fn parse_arguments() -> clap::ArgMatches {
     Command::new("Skeletor")
-        .version("2.1.0")
+        .version("2.1.1")
         .author("Jason Joseph Nathan")
         .about("A super optimised Rust scaffolding tool with snapshot annotations")
         .subcommand_required(true)
@@ -79,7 +81,14 @@ fn parse_arguments() -> clap::ArgMatches {
                         .help("Include file contents in the snapshot (for text files; binary files will be empty)")
                         .action(ArgAction::SetTrue),
                 )
-                // Although a flag existed before, we now always include hidden files/folders.
+                .arg(
+                    Arg::new("ignore")
+                        .short('I')
+                        .long("ignore")
+                        .value_name("PATTERN_OR_FILE")
+                        .help("A glob pattern or a file containing .gitignore style patterns. Can be used multiple times.")
+                        .action(ArgAction::Append),
+                ),
         )
         .subcommand(
             Command::new("info")
@@ -204,15 +213,26 @@ fn task_path(task: &Task) -> String {
     }
 }
 
-/// Recursively snapshots a directory into a YAML structure.  
+/// Wrapper for snapshotting a directory using ignore patterns.
+/// This function calls an inner recursive function starting with an empty relative path.
+fn snapshot_directory_with_ignore(
+    base: &Path,
+    include_contents: bool,
+    ignore: Option<&GlobSet>,
+) -> Result<(Yaml, Vec<String>), SkeletorError> {
+    snapshot_directory_inner(base, include_contents, ignore, Path::new(""))
+}
+
+/// Recursively snapshots a directory into a YAML structure.
+/// The `relative` parameter represents the path relative to the snapshot root.
 /// Returns a tuple of:
 /// - The YAML representation (a Hash mapping names to file contents or subdirectories)
 /// - A vector of relative file paths that were detected as binary.
-fn snapshot_directory(
+fn snapshot_directory_inner(
     base: &Path,
     include_contents: bool,
-    // Hidden files are always included to match original behaviour.
-    _include_hidden: bool,
+    ignore: Option<&GlobSet>,
+    relative: &Path,
 ) -> Result<(Yaml, Vec<String>), SkeletorError> {
     let mut mapping = LinkedHashMap::new(); // Use LinkedHashMap instead of BTreeMap
     let mut binaries: Vec<String> = vec![];
@@ -220,10 +240,19 @@ fn snapshot_directory(
     for entry in fs::read_dir(base)? {
         let entry = entry?;
         let file_name = entry.file_name().to_string_lossy().into_owned();
-        let path = entry.path();
+        // Build the new relative path: e.g. "src/index.js"
+        let new_relative = relative.join(&file_name);
+        // If we have an ignore matcher and the relative path matches, skip it.
+        if let Some(globset) = ignore {
+            if globset.is_match(new_relative.to_string_lossy().as_ref()) {
+                continue;
+            }
+        }
 
+        let path = entry.path();
         if path.is_dir() {
-            let (sub_yaml, mut sub_binaries) = snapshot_directory(&path, include_contents, true)?;
+            let (sub_yaml, mut sub_binaries) =
+                snapshot_directory_inner(&path, include_contents, ignore, &new_relative)?;
             mapping.insert(Yaml::String(file_name), sub_yaml);
             binaries.append(&mut sub_binaries);
         } else if path.is_file() {
@@ -242,8 +271,8 @@ fn snapshot_directory(
             };
 
             if is_binary {
-                // Record the relative file path; for simplicity, just the file name.
-                binaries.push(file_name.clone());
+                // Record the relative file path.
+                binaries.push(new_relative.to_string_lossy().into_owned());
             }
             mapping.insert(Yaml::String(file_name), Yaml::String(content));
         }
@@ -252,7 +281,7 @@ fn snapshot_directory(
     Ok((Yaml::Hash(mapping), binaries))
 }
 
-/// Runs the snapshot subcommand. Generates a snapshot with extra annotations.
+/// Runs the snapshot subcommand. Generates a snapshot with extra annotations and ignore support.
 fn run_snapshot(matches: &clap::ArgMatches) -> Result<(), SkeletorError> {
     let source_path = PathBuf::from(matches.get_one::<String>("source").unwrap());
     let output_path = matches.get_one::<String>("output").map(PathBuf::from);
@@ -261,10 +290,70 @@ fn run_snapshot(matches: &clap::ArgMatches) -> Result<(), SkeletorError> {
         .unwrap_or(&false);
 
     info!("Taking snapshot of folder: {:?}", source_path);
-    // Always include hidden files to match original behaviour.
-    let (dir_snapshot, binary_files) = snapshot_directory(&source_path, include_contents, true)?;
 
-    let current_date = Utc::now().to_rfc3339();
+    // Process ignore flags.
+    let mut ignore_patterns: Vec<String> = Vec::new();
+    if let Some(vals) = matches.get_many::<String>("ignore") {
+        for val in vals {
+            let val = val.as_str();
+            let candidate = Path::new(val);
+            if candidate.exists() && candidate.is_file() {
+                // Read file and add non-empty, non-comment lines.
+                let content = fs::read_to_string(candidate)?;
+                for line in content.lines() {
+                    let trimmed = line.trim();
+                    if trimmed.is_empty() || trimmed.starts_with('#') {
+                        continue;
+                    }
+                    ignore_patterns.push(trimmed.to_string());
+                }
+            } else {
+                // Treat the value directly as a glob pattern.
+                ignore_patterns.push(val.to_string());
+            }
+        }
+    }
+
+    // Build the GlobSet if any ignore patterns are provided.
+    let globset = if !ignore_patterns.is_empty() {
+        let mut builder = GlobSetBuilder::new();
+        for pat in &ignore_patterns {
+            // It is good practice to trim whitespace.
+            let pat = pat.trim();
+            builder.add(Glob::new(pat).map_err(|e| SkeletorError::Config(e.to_string()))?);
+        }
+        Some(
+            builder
+                .build()
+                .map_err(|e| SkeletorError::Config(e.to_string()))?,
+        )
+    } else {
+        None
+    };
+
+    // Take the snapshot.
+    let (dir_snapshot, binary_files) =
+        snapshot_directory_with_ignore(&source_path, include_contents, globset.as_ref())?;
+
+    let now = Utc::now().to_rfc3339();
+    // If an output file exists, try to preserve its "created" timestamp.
+    let created = if let Some(ref out_file) = output_path {
+        if out_file.exists() {
+            let existing = fs::read_to_string(out_file)?;
+            let docs = YamlLoader::load_from_str(&existing)?;
+            if let Some(c) = docs.first().and_then(|doc| doc["created"].as_str()) {
+                c.to_string()
+            } else {
+                now.clone()
+            }
+        } else {
+            now.clone()
+        }
+    } else {
+        now.clone()
+    };
+    let updated = now;
+
     let mut comments = format!("Snapshot generated from folder: {:?}", source_path);
     if binary_files.is_empty() {
         comments.push_str("\nNo binary files detected.");
@@ -275,10 +364,16 @@ fn run_snapshot(matches: &clap::ArgMatches) -> Result<(), SkeletorError> {
         ));
     }
 
-    // Build the top-level YAML mapping without changing the existing structure.
+    // Build the top-level YAML mapping without changing the original structure.
     let mut top_map = LinkedHashMap::new(); // Use LinkedHashMap instead of BTreeMap
-    top_map.insert(Yaml::String("dates".into()), Yaml::String(current_date));
+    top_map.insert(Yaml::String("created".into()), Yaml::String(created));
+    top_map.insert(Yaml::String("updated".into()), Yaml::String(updated));
     top_map.insert(Yaml::String("comments".into()), Yaml::String(comments));
+    // Include the ignore patterns (blacklist) if any.
+    if !ignore_patterns.is_empty() {
+        let patterns_yaml: Vec<Yaml> = ignore_patterns.into_iter().map(Yaml::String).collect();
+        top_map.insert(Yaml::String("blacklist".into()), Yaml::Array(patterns_yaml));
+    }
     top_map.insert(Yaml::String("directories".into()), dir_snapshot);
     let snapshot_yaml = Yaml::Hash(top_map);
 
@@ -346,15 +441,26 @@ fn run_info(matches: &clap::ArgMatches) -> Result<(), SkeletorError> {
     let doc = &yaml_docs[0];
 
     println!("Information from {:?}:", input_path);
-    if let Some(date) = doc["dates"].as_str() {
-        println!("  Snapshot date: {}", date);
+    if let Some(created) = doc["created"].as_str() {
+        println!("  Created: {}", created);
     } else {
-        println!("  No date information available.");
+        println!("  No created timestamp available.");
+    }
+    if let Some(updated) = doc["updated"].as_str() {
+        println!("  Updated: {}", updated);
+    } else {
+        println!("  No updated timestamp available.");
     }
     if let Some(comments) = doc["comments"].as_str() {
         println!("  Comments: {}", comments);
     } else {
         println!("  No comments available.");
+    }
+    if let Some(blacklist) = doc["blacklist"].as_vec() {
+        let patterns: Vec<&str> = blacklist.iter().filter_map(|p| p.as_str()).collect();
+        println!("  Blacklist patterns: {:?}", patterns);
+    } else {
+        println!("  No blacklist information available.");
     }
     Ok(())
 }
@@ -464,7 +570,8 @@ mod tests {
         // Hidden file should be included.
         fs::write(src.join(".hidden.txt"), "secret").unwrap();
 
-        let (yaml_structure, binaries) = snapshot_directory(&test_dir, false, true).unwrap();
+        let (yaml_structure, binaries) =
+            snapshot_directory_with_ignore(&test_dir, false, None).unwrap();
 
         if let Yaml::Hash(map) = yaml_structure {
             // Expect "src" key exists.
