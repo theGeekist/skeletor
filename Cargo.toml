@@ -1,6 +1,6 @@
 [package]
 name = "skeletor"
-version = "2.2.2"
+version = "2.2.3"
 authors = ["Jason Joseph Nathan <jjanthanjr@gmail.com>"]
 edition = "2021"
 description = "A super optimized Rust scaffolding tool."

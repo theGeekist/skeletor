@@ -180,7 +180,11 @@ blacklist:
         // Create a temporary configuration file with invalid YAML for test.
         let temp_dir = tempdir().unwrap();
         let config_path = temp_dir.path().join("config.yaml");
-        fs::write(&config_path, "invalid_yaml: data\n\tbad_indent: - missing_value").unwrap();
+        fs::write(
+            &config_path,
+            "invalid_yaml: data\n\tbad_indent: - missing_value",
+        )
+        .unwrap();
 
         let args = vec!["skeletor", "info", "--input", config_path.to_str().unwrap()];
         let matches = Command::new("Skeletor")
