@@ -1,6 +1,6 @@
 [package]
 name = "skeletor"
-version = "2.0.1"
+version = "2.1.0"
 authors = ["Jason Joseph Nathan <jjanthanjr@gmail.com>"]
 edition = "2021"
 description = "A super optimized Rust scaffolding tool."
@@ -10,6 +10,7 @@ homepage = "https://github.com/jasonnathan/skeletor"
 documentation = "https://github.com/jasonnathan/skeletor/blob/main/README.md"
 
 [dependencies]
+chrono = "0.4.39"
 clap = {version = "4.5.20", features = ["derive"]}
 env_logger = "0.11.5"
 indicatif = "0.17.8"

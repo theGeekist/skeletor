@@ -12,6 +12,9 @@ use std::time::Instant;
 use thiserror::Error;
 use yaml_rust::{Yaml, YamlEmitter, YamlLoader};
 
+/// For timestamp formatting, we use chrono.
+use chrono::Utc;
+
 #[derive(Debug, Error)]
 enum SkeletorError {
     #[error("IO error: {0}")]
@@ -22,19 +25,19 @@ enum SkeletorError {
     Config(String),
 }
 
-/// Tasks for applying a configuration.
+/// A task to either create a directory or a file.
 #[derive(Debug, PartialEq)]
 enum Task {
     Dir(PathBuf),
     File(PathBuf, String),
 }
 
-/// Build the command-line interface with subcommands.
+/// Build the CLI interface with three subcommands: `apply`, `snapshot` and `info`
 fn parse_arguments() -> clap::ArgMatches {
     Command::new("Skeletor")
-        .version("2.0.1")
+        .version("2.1.0")
         .author("Jason Joseph Nathan")
-        .about("A super optimised Rust scaffolding tool with snapshot support")
+        .about("A super optimised Rust scaffolding tool with snapshot annotations")
         .subcommand_required(true)
         .subcommand(
             Command::new("apply")
@@ -73,25 +76,31 @@ fn parse_arguments() -> clap::ArgMatches {
                 .arg(
                     Arg::new("include_contents")
                         .long("include-contents")
-                        .help("Include file contents in the snapshot")
+                        .help("Include file contents in the snapshot (for text files; binary files will be empty)")
                         .action(ArgAction::SetTrue),
                 )
+                // Although a flag existed before, we now always include hidden files/folders.
+        )
+        .subcommand(
+            Command::new("info")
+                .about("Prints annotation information from a .skeletorrc file")
                 .arg(
-                    Arg::new("include_hidden")
-                        .long("all")
-                        .help("Include hidden files and directories")
-                        .action(ArgAction::SetTrue),
+                    Arg::new("input")
+                        .short('i')
+                        .long("input")
+                        .value_name("FILE")
+                        .help("Specify the YAML configuration file (defaults to .skeletorrc)"),
                 ),
         )
         .get_matches()
 }
 
-/// Reads the YAML configuration file and returns the parsed YAML node.
+/// Reads the YAML configuration file and extracts the "directories" key.
+/// (Any extra keys are ignored by the apply functionality.)
 fn read_config(path: &Path) -> Result<Yaml, SkeletorError> {
     let content = fs::read_to_string(path)?;
     let yaml_docs = YamlLoader::load_from_str(&content)?;
 
-    // Access the "directories" key and return its content
     let directories = yaml_docs
         .first()
         .and_then(|doc| doc["directories"].as_hash())
@@ -129,7 +138,7 @@ fn traverse_structure(base: &Path, yaml: &Yaml) -> Vec<Task> {
     tasks
 }
 
-/// Creates the files and directories as per the tasks, respecting the overwrite flag.
+/// Creates files and directories as specified by tasks; logs progress and respects the overwrite flag.
 fn create_files_and_directories(
     tasks: &[Task],
     overwrite: bool,
@@ -187,7 +196,7 @@ fn create_files_and_directories(
     Ok((files_created, dirs_created))
 }
 
-/// Returns a string representation of the task for logging.
+/// Returns a string representation of a task.
 fn task_path(task: &Task) -> String {
     match task {
         Task::Dir(path) => format!("Dir: {:?}", path),
@@ -195,63 +204,89 @@ fn task_path(task: &Task) -> String {
     }
 }
 
-/// Recursively snapshots a directory into a YAML structure.
-/// Each directory becomes a YAML Hash mapping names to their content;
-/// files are represented as key-value pairs, where the value is either the file’s content or an empty string.
+/// Recursively snapshots a directory into a YAML structure.  
+/// Returns a tuple of:
+/// - The YAML representation (a Hash mapping names to file contents or subdirectories)
+/// - A vector of relative file paths that were detected as binary.
 fn snapshot_directory(
     base: &Path,
     include_contents: bool,
-    include_hidden: bool,
-) -> Result<Yaml, SkeletorError> {
+    // Hidden files are always included to match original behaviour.
+    _include_hidden: bool,
+) -> Result<(Yaml, Vec<String>), SkeletorError> {
     let mut mapping = LinkedHashMap::new(); // Use LinkedHashMap instead of BTreeMap
+    let mut binaries: Vec<String> = vec![];
 
     for entry in fs::read_dir(base)? {
         let entry = entry?;
-        let file_name_os = entry.file_name();
-        let file_name = file_name_os.to_string_lossy();
-        if !include_hidden && file_name.starts_with('.') {
-            continue;
-        }
+        let file_name = entry.file_name().to_string_lossy().into_owned();
         let path = entry.path();
+
         if path.is_dir() {
-            let sub_yaml = snapshot_directory(&path, include_contents, include_hidden)?;
-            mapping.insert(Yaml::String(file_name.into_owned()), sub_yaml);
+            let (sub_yaml, mut sub_binaries) = snapshot_directory(&path, include_contents, true)?;
+            mapping.insert(Yaml::String(file_name), sub_yaml);
+            binaries.append(&mut sub_binaries);
         } else if path.is_file() {
-            let value = if include_contents {
-                fs::read_to_string(&path)
-                    .unwrap_or_else(|_| String::from("<<BINARY OR UNREADABLE>>"))
+            let mut is_binary = false;
+            let content = if include_contents {
+                let bytes = fs::read(&path)?;
+                match String::from_utf8(bytes) {
+                    Ok(text) => text,
+                    Err(_) => {
+                        is_binary = true;
+                        String::new()
+                    }
+                }
             } else {
                 String::new()
             };
-            mapping.insert(Yaml::String(file_name.into_owned()), Yaml::String(value));
+
+            if is_binary {
+                // Record the relative file path; for simplicity, just the file name.
+                binaries.push(file_name.clone());
+            }
+            mapping.insert(Yaml::String(file_name), Yaml::String(content));
         }
     }
 
-    Ok(Yaml::Hash(mapping)) // No more type mismatch
+    Ok((Yaml::Hash(mapping), binaries))
 }
 
-/// Runs the snapshot subcommand: generates a .skeletorrc YAML from an existing folder.
+/// Runs the snapshot subcommand. Generates a snapshot with extra annotations.
 fn run_snapshot(matches: &clap::ArgMatches) -> Result<(), SkeletorError> {
     let source_path = PathBuf::from(matches.get_one::<String>("source").unwrap());
     let output_path = matches.get_one::<String>("output").map(PathBuf::from);
     let include_contents = *matches
         .get_one::<bool>("include_contents")
         .unwrap_or(&false);
-    let include_hidden = *matches.get_one::<bool>("include_hidden").unwrap_or(&false);
 
     info!("Taking snapshot of folder: {:?}", source_path);
-    let snapshot = {
-        let mut top_map = LinkedHashMap::new(); // Use LinkedHashMap instead of BTreeMap
-        let dir_snapshot = snapshot_directory(&source_path, include_contents, include_hidden)?;
-        top_map.insert(Yaml::String("directories".into()), dir_snapshot);
-        Yaml::Hash(top_map) // No more type mismatch
-    };
+    // Always include hidden files to match original behaviour.
+    let (dir_snapshot, binary_files) = snapshot_directory(&source_path, include_contents, true)?;
 
-    // Emit the YAML as a string
+    let current_date = Utc::now().to_rfc3339();
+    let mut comments = format!("Snapshot generated from folder: {:?}", source_path);
+    if binary_files.is_empty() {
+        comments.push_str("\nNo binary files detected.");
+    } else {
+        comments.push_str(&format!(
+            "\nBinary files detected (contents omitted): {:?}",
+            binary_files
+        ));
+    }
+
+    // Build the top-level YAML mapping without changing the existing structure.
+    let mut top_map = LinkedHashMap::new(); // Use LinkedHashMap instead of BTreeMap
+    top_map.insert(Yaml::String("dates".into()), Yaml::String(current_date));
+    top_map.insert(Yaml::String("comments".into()), Yaml::String(comments));
+    top_map.insert(Yaml::String("directories".into()), dir_snapshot);
+    let snapshot_yaml = Yaml::Hash(top_map);
+
+    // Emit the YAML.
     let mut out_str = String::new();
     {
         let mut emitter = YamlEmitter::new(&mut out_str);
-        emitter.dump(&snapshot).unwrap();
+        emitter.dump(&snapshot_yaml).unwrap();
     }
 
     if let Some(out_file) = output_path {
@@ -264,7 +299,7 @@ fn run_snapshot(matches: &clap::ArgMatches) -> Result<(), SkeletorError> {
     Ok(())
 }
 
-/// Runs the apply subcommand: reads a YAML config and creates files/directories.
+/// Runs the apply subcommand: reads the YAML config and creates files/directories.
 fn run_apply(matches: &clap::ArgMatches) -> Result<(), SkeletorError> {
     let input_path = matches
         .get_one::<String>("input")
@@ -299,6 +334,31 @@ fn run_apply(matches: &clap::ArgMatches) -> Result<(), SkeletorError> {
     Ok(())
 }
 
+/// Runs the info subcommand: prints annotation information from a .skeletorrc file.
+fn run_info(matches: &clap::ArgMatches) -> Result<(), SkeletorError> {
+    let input_path = matches
+        .get_one::<String>("input")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(".skeletorrc"));
+
+    let content = fs::read_to_string(&input_path)?;
+    let yaml_docs = YamlLoader::load_from_str(&content)?;
+    let doc = &yaml_docs[0];
+
+    println!("Information from {:?}:", input_path);
+    if let Some(date) = doc["dates"].as_str() {
+        println!("  Snapshot date: {}", date);
+    } else {
+        println!("  No date information available.");
+    }
+    if let Some(comments) = doc["comments"].as_str() {
+        println!("  Comments: {}", comments);
+    } else {
+        println!("  No comments available.");
+    }
+    Ok(())
+}
+
 fn main() -> Result<(), SkeletorError> {
     env_logger::init();
 
@@ -307,6 +367,7 @@ fn main() -> Result<(), SkeletorError> {
     match matches.subcommand() {
         Some(("apply", sub_m)) => run_apply(sub_m)?,
         Some(("snapshot", sub_m)) => run_snapshot(sub_m)?,
+        Some(("info", sub_m)) => run_info(sub_m)?,
         _ => unreachable!("A subcommand is required"),
     }
 
@@ -316,7 +377,6 @@ fn main() -> Result<(), SkeletorError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tempfile::tempdir;
@@ -339,7 +399,6 @@ mod tests {
         }
 
         fs::create_dir(&test_dir).expect("Failed to create test directory");
-
         test_dir
     }
 
@@ -394,38 +453,27 @@ mod tests {
     }
 
     #[test]
-    fn test_read_config_valid() {
+    fn test_snapshot_directory_without_contents() {
         let temp_dir = tempdir().unwrap();
-        let config_file = temp_dir.path().join(".skeletorrc");
+        let test_dir = temp_dir.path();
 
-        let yaml_content = r#"directories:
-  src:
-    index.js: "console.log('Hello, world!');"
-    components:
-      Header.js: "// Header component"
-"#;
+        // Create a simple structure with a hidden file and a regular file.
+        let src = test_dir.join("src");
+        fs::create_dir(&src).unwrap();
+        fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
+        // Hidden file should be included.
+        fs::write(src.join(".hidden.txt"), "secret").unwrap();
 
-        fs::write(&config_file, yaml_content).unwrap();
+        let (yaml_structure, binaries) = snapshot_directory(&test_dir, false, true).unwrap();
 
-        let result = read_config(&config_file);
-
-        assert!(result.is_ok());
-
-        // temp_dir will be deleted when it goes out of scope
-    }
-    #[test]
-    fn test_read_config_invalid() {
-        let test_dir = setup_test_dir();
-        let config_file = test_dir.join("invalid.yaml");
-
-        let invalid_yaml_content = "invalid_yaml: data\n\tbad_indent: - missing_value";
-        fs::write(&config_file, invalid_yaml_content).unwrap();
-
-        let result = read_config(&config_file);
-
-        assert!(result.is_err());
-
-        teardown_test_dir(&test_dir);
+        if let Yaml::Hash(map) = yaml_structure {
+            // Expect "src" key exists.
+            assert!(map.contains_key(&Yaml::String("src".into())));
+        } else {
+            panic!("Expected a YAML hash");
+        }
+        // Since we are not including contents, binaries should be empty.
+        assert!(binaries.is_empty());
     }
 
     #[test]
@@ -494,5 +542,41 @@ mod tests {
 
         assert_eq!(task_path(&dir_task), "Dir: \"src\"");
         assert_eq!(task_path(&file_task), "File: \"src/index.js\"");
+    }
+
+    #[test]
+    fn test_read_config_invalid() {
+        let test_dir = setup_test_dir();
+        let config_file = test_dir.join("invalid.yaml");
+
+        let invalid_yaml_content = "invalid_yaml: data\n\tbad_indent: - missing_value";
+        fs::write(&config_file, invalid_yaml_content).unwrap();
+
+        let result = read_config(&config_file);
+
+        assert!(result.is_err());
+
+        teardown_test_dir(&test_dir);
+    }
+
+    #[test]
+    fn read_config_valid() {
+        let yaml_str = r#"
+        directories:
+          src:
+            index.js: "console.log('Hello, world!');"
+            components:
+              Header.js: "// Header component"
+        "#;
+        let temp_dir = tempdir().unwrap();
+        let test_file = temp_dir.path().join("test.yaml");
+        fs::write(&test_file, yaml_str).unwrap();
+
+        let config = read_config(&test_file).unwrap();
+        if let Yaml::Hash(map) = config {
+            assert!(map.contains_key(&Yaml::String("src".into())));
+        } else {
+            panic!("Expected a YAML hash");
+        }
     }
 }
