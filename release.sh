@@ -20,6 +20,10 @@ echo "🔄 Updating version in src/main.rs..."
 sed -i.bak "s/\.version(\"[^\"]*\")/\.version(\"${NEW_VERSION}\")/" src/main.rs
 rm src/main.rs.bak
 
+# Ensure Cargo.lock is up to date
+echo "🔄 Updating Cargo.lock..."
+cargo check > /dev/null 2>&1
+
 # Commit changes
 echo "📦 Committing version bump..."
 git add Cargo.toml src/main.rs Cargo.lock
