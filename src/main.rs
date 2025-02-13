@@ -32,7 +32,7 @@ enum Task {
 /// Build the command-line interface with subcommands.
 fn parse_arguments() -> clap::ArgMatches {
     Command::new("Skeletor")
-        .version("1.1")
+        .version("2.0.1")
         .author("Jason Joseph Nathan")
         .about("A super optimised Rust scaffolding tool with snapshot support")
         .subcommand_required(true)
