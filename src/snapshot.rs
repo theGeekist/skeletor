@@ -255,7 +255,12 @@ mod tests {
         fs::create_dir(&src).unwrap();
         fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
 
-        let args = vec!["skeletor", "snapshot", test_dir.to_str().unwrap(), "--dry-run"];
+        let args = vec![
+            "skeletor",
+            "snapshot",
+            test_dir.to_str().unwrap(),
+            "--dry-run",
+        ];
         let matches = Command::new("Skeletor")
             .subcommand(
                 Command::new("snapshot")
@@ -384,96 +389,95 @@ mod tests {
             panic!("Snapshot subcommand not found");
         }
     }
-    
+
     #[test]
     fn test_run_snapshot_with_ignore_patterns() {
-      let temp_dir = tempdir().unwrap();
-      let test_dir = temp_dir.path();
+        let temp_dir = tempdir().unwrap();
+        let test_dir = temp_dir.path();
 
-      // Create a simple structure.
-      let src = test_dir.join("src");
-      fs::create_dir(&src).unwrap();
-      fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
-      fs::write(src.join("ignore.txt"), "ignore me").unwrap();
+        // Create a simple structure.
+        let src = test_dir.join("src");
+        fs::create_dir(&src).unwrap();
+        fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
+        fs::write(src.join("ignore.txt"), "ignore me").unwrap();
 
-      let ignore_file = temp_dir.path().join("ignore_patterns.txt");
-      fs::write(&ignore_file, "ignore.txt").unwrap();
+        let ignore_file = temp_dir.path().join("ignore_patterns.txt");
+        fs::write(&ignore_file, "ignore.txt").unwrap();
 
-      let args = vec![
-          "skeletor",
-          "snapshot",
-          test_dir.to_str().unwrap(),
-          "--ignore",
-          ignore_file.to_str().unwrap(),
-      ];
-      let matches = Command::new("Skeletor")
-          .subcommand(
-              Command::new("snapshot")
-                  .arg(
-                      Arg::new("source")
-                          .value_name("FOLDER")
-                          .help("The source folder to snapshot")
-                          .required(true),
-                  )
-                  .arg(
-                      Arg::new("output")
-                          .short('o')
-                          .long("output")
-                          .value_name("FILE")
-                          .help("Output file for the generated snapshot YAML (prints to stdout if not provided)"),
-                  )
-                  .arg(
-                      Arg::new("include_contents")
-                          .long("include-contents")
-                          .help("Include file contents in the snapshot (for text files; binary files will be empty)")
-                          .action(ArgAction::SetTrue),
-                  )
-                  .arg(
-                      Arg::new("ignore")
-                          .short('I')
-                          .long("ignore")
-                          .value_name("PATTERN_OR_FILE")
-                          .help("A glob pattern or a file containing .gitignore style patterns. Can be used multiple times.")
-                          .action(ArgAction::Append),
-                  )
-                  .arg(
-                      Arg::new("dry_run")
-                          .short('d')
-                          .long("dry-run")
-                          .help("Perform a trial run with no changes made")
-                          .action(ArgAction::SetTrue),
-                  )
-                  .arg(
-                      Arg::new("note")
-                          .short('n')
-                          .long("note")
-                          .value_name("NOTE")
-                          .help("Optional user note to include in the snapshot"),
-                  ),
-          )
-          .get_matches_from(args);
+        let args = vec![
+            "skeletor",
+            "snapshot",
+            test_dir.to_str().unwrap(),
+            "--ignore",
+            ignore_file.to_str().unwrap(),
+        ];
+        let matches = Command::new("Skeletor")
+            .subcommand(
+                Command::new("snapshot")
+                    .arg(
+                        Arg::new("source")
+                            .value_name("FOLDER")
+                            .help("The source folder to snapshot")
+                            .required(true),
+                    )
+                    .arg(
+                        Arg::new("output")
+                            .short('o')
+                            .long("output")
+                            .value_name("FILE")
+                            .help("Output file for the generated snapshot YAML (prints to stdout if not provided)"),
+                    )
+                    .arg(
+                        Arg::new("include_contents")
+                            .long("include-contents")
+                            .help("Include file contents in the snapshot (for text files; binary files will be empty)")
+                            .action(ArgAction::SetTrue),
+                    )
+                    .arg(
+                        Arg::new("ignore")
+                            .short('I')
+                            .long("ignore")
+                            .value_name("PATTERN_OR_FILE")
+                            .help("A glob pattern or a file containing .gitignore style patterns. Can be used multiple times.")
+                            .action(ArgAction::Append),
+                    )
+                    .arg(
+                        Arg::new("dry_run")
+                            .short('d')
+                            .long("dry-run")
+                            .help("Perform a trial run with no changes made")
+                            .action(ArgAction::SetTrue),
+                    )
+                    .arg(
+                        Arg::new("note")
+                            .short('n')
+                            .long("note")
+                            .value_name("NOTE")
+                            .help("Optional user note to include in the snapshot"),
+                    ),
+            )
+            .get_matches_from(args);
 
-      if let Some(sub_m) = matches.subcommand_matches("snapshot") {
-          let result = run_snapshot(sub_m);
-          assert!(result.is_ok());
-      } else {
-          panic!("Snapshot subcommand not found");
-      }
-  }
-
+        if let Some(sub_m) = matches.subcommand_matches("snapshot") {
+            let result = run_snapshot(sub_m);
+            assert!(result.is_ok(), "run_snapshot failed: {:?}", result);
+        } else {
+            panic!("Snapshot subcommand not found");
+        }
+    }
     #[test]
     fn test_run_snapshot_with_binary_files() {
-      let temp_dir = tempdir().unwrap();
-      let test_dir = temp_dir.path();
+        let temp_dir = tempdir().unwrap();
+        let test_dir = temp_dir.path();
 
-      // Create a simple structure with a binary file.
-      let src = test_dir.join("src");
-      fs::create_dir(&src).unwrap();
-      fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
-      fs::write(src.join("binary.bin"), &[0, 159, 146, 150]).unwrap();
+        // Create a simple structure with a binary file.
+        let src = test_dir.join("src");
+        fs::create_dir(&src).unwrap();
+        fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
+        fs::write(src.join("binary.bin"), &[0, 159, 146, 150]).unwrap();
 
-      let args = vec!["skeletor", "snapshot", test_dir.to_str().unwrap()];
-      let matches = Command::new("Skeletor")
+        let args = vec!["skeletor", "snapshot", test_dir.to_str().unwrap()];
+        let matches = Command::new("Skeletor")
           .subcommand(
               Command::new("snapshot")
                   .arg(
@@ -520,35 +524,34 @@ mod tests {
           )
           .get_matches_from(args);
 
-      if let Some(sub_m) = matches.subcommand_matches("snapshot") {
-          let result = run_snapshot(sub_m);
-          assert!(result.is_ok());
-      } else {
-          panic!("Snapshot subcommand not found");
-      }
-  }
+        if let Some(sub_m) = matches.subcommand_matches("snapshot") {
+            let result = run_snapshot(sub_m);
+            assert!(result.is_ok(), "run_snapshot failed: {:?}", result);
+        } else {
+            panic!("Snapshot subcommand not found");
+        }
+    }
+    #[test]
+    fn test_run_snapshot_with_notes() {
+        let temp_dir = tempdir().unwrap();
+        let test_dir = temp_dir.path();
+        let output_file = temp_dir.path().join("output.yaml");
 
-  #[test]
-  fn test_run_snapshot_with_notes() {
-      let temp_dir = tempdir().unwrap();
-      let test_dir = temp_dir.path();
-      let output_file = temp_dir.path().join("output.yaml");
+        // Create a simple structure.
+        let src = test_dir.join("src");
+        fs::create_dir(&src).unwrap();
+        fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
 
-      // Create a simple structure.
-      let src = test_dir.join("src");
-      fs::create_dir(&src).unwrap();
-      fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
-
-      let args = vec![
-          "skeletor",
-          "snapshot",
-          test_dir.to_str().unwrap(),
-          "--output",
-          output_file.to_str().unwrap(),
-          "--note",
-          "This is a test note",
-      ];
-      let matches = Command::new("Skeletor")
+        let args = vec![
+            "skeletor",
+            "snapshot",
+            test_dir.to_str().unwrap(),
+            "--output",
+            output_file.to_str().unwrap(),
+            "--note",
+            "This is a test note",
+        ];
+        let matches = Command::new("Skeletor")
           .subcommand(
               Command::new("snapshot")
                   .arg(
@@ -592,34 +595,34 @@ mod tests {
           )
           .get_matches_from(args);
 
-      if let Some(sub_m) = matches.subcommand_matches("snapshot") {
-          let result = run_snapshot(sub_m);
-          assert!(result.is_ok());
-          assert!(output_file.exists());
+        if let Some(sub_m) = matches.subcommand_matches("snapshot") {
+            let result = run_snapshot(sub_m);
+            assert!(result.is_ok());
+            assert!(output_file.exists());
 
-          // Verify that the note is included in the output file.
-          let output_content = fs::read_to_string(output_file).unwrap();
-          assert!(output_content.contains("This is a test note"));
-      } else {
-          panic!("Snapshot subcommand not found");
-      }
-  }
+            // Verify that the note is included in the output file.
+            let output_content = fs::read_to_string(output_file).unwrap();
+            assert!(output_content.contains("This is a test note"));
+        } else {
+            panic!("Snapshot subcommand not found");
+        }
+    }
 
-  #[test]
-  fn test_run_snapshot_with_existing_output_file() {
-      let temp_dir = tempdir().unwrap();
-      let test_dir = temp_dir.path();
-      let output_file = temp_dir.path().join("output.yaml");
+    #[test]
+    fn test_run_snapshot_with_existing_output_file() {
+        let temp_dir = tempdir().unwrap();
+        let test_dir = temp_dir.path();
+        let output_file = temp_dir.path().join("output.yaml");
 
-      // Create a simple structure.
-      let src = test_dir.join("src");
-      fs::create_dir(&src).unwrap();
-      fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
+        // Create a simple structure.
+        let src = test_dir.join("src");
+        fs::create_dir(&src).unwrap();
+        fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
 
-      // Create an existing output file with a "created" timestamp.
-      fs::write(
-          &output_file,
-          r#"
+        // Create an existing output file with a "created" timestamp.
+        fs::write(
+            &output_file,
+            r#"
 created: "2020-01-01T00:00:00Z"
 updated: "2020-01-02T00:00:00Z"
 generated_comments: "Test comment"
@@ -627,17 +630,17 @@ directories:
 src:
   main.rs: "fn main() {}"
 "#,
-      )
-      .unwrap();
+        )
+        .unwrap();
 
-      let args = vec![
-          "skeletor",
-          "snapshot",
-          test_dir.to_str().unwrap(),
-          "--output",
-          output_file.to_str().unwrap(),
-      ];
-      let matches = Command::new("Skeletor")
+        let args = vec![
+            "skeletor",
+            "snapshot",
+            test_dir.to_str().unwrap(),
+            "--output",
+            output_file.to_str().unwrap(),
+        ];
+        let matches = Command::new("Skeletor")
           .subcommand(
               Command::new("snapshot")
                   .arg(
@@ -681,26 +684,26 @@ src:
           )
           .get_matches_from(args);
 
-      if let Some(sub_m) = matches.subcommand_matches("snapshot") {
-          let result = run_snapshot(sub_m);
-          assert!(result.is_ok());
-      } else {
-          panic!("Snapshot subcommand not found");
-      }
-  }
+        if let Some(sub_m) = matches.subcommand_matches("snapshot") {
+            let result = run_snapshot(sub_m);
+            assert!(result.is_ok());
+        } else {
+            panic!("Snapshot subcommand not found");
+        }
+    }
 
-  #[test]
-  fn test_run_snapshot_with_final_println() {
-      let temp_dir = tempdir().unwrap();
-      let test_dir = temp_dir.path();
+    #[test]
+    fn test_run_snapshot_with_final_println() {
+        let temp_dir = tempdir().unwrap();
+        let test_dir = temp_dir.path();
 
-      // Create a simple structure.
-      let src = test_dir.join("src");
-      fs::create_dir(&src).unwrap();
-      fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
+        // Create a simple structure.
+        let src = test_dir.join("src");
+        fs::create_dir(&src).unwrap();
+        fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
 
-      let args = vec!["skeletor", "snapshot", test_dir.to_str().unwrap()];
-      let matches = Command::new("Skeletor")
+        let args = vec!["skeletor", "snapshot", test_dir.to_str().unwrap()];
+        let matches = Command::new("Skeletor")
           .subcommand(
               Command::new("snapshot")
                   .arg(
@@ -744,11 +747,11 @@ src:
           )
           .get_matches_from(args);
 
-      if let Some(sub_m) = matches.subcommand_matches("snapshot") {
-          let result = run_snapshot(sub_m);
-          assert!(result.is_ok());
-      } else {
-          panic!("Snapshot subcommand not found");
-      }
-  }
+        if let Some(sub_m) = matches.subcommand_matches("snapshot") {
+            let result = run_snapshot(sub_m);
+            assert!(result.is_ok(), "run_snapshot failed: {:?}", result);
+        } else {
+            panic!("Snapshot subcommand not found");
+        }
+    }
 }

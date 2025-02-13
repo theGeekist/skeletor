@@ -55,17 +55,17 @@ mod tests {
     use clap::{Arg, ArgAction, Command};
     use std::env;
     use std::fs;
-    use tempfile::TempDir;
     use std::sync::Mutex;
+    use tempfile::TempDir;
     lazy_static::lazy_static! {
         static ref DIR_LOCK: Mutex<()> = Mutex::new(());
     }
-    
+
     #[test]
     fn test_run_apply_defaults_to_local_config() {
         // Acquire the lock to ensure current_dir modifications are serialized.
         let _lock = DIR_LOCK.lock().unwrap();
-    
+
         // Create a temporary ".skeletorrc"
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join(".skeletorrc");
@@ -81,7 +81,7 @@ directories:
         // Back up the current working directory.
         let orig_dir = env::current_dir().unwrap();
         env::set_current_dir(&temp_dir).unwrap();
-    
+
         // Build dummy matches with no input provided.
         let args = vec!["skeletor", "apply"];
         let matches = Command::new("Skeletor")
@@ -113,7 +113,7 @@ directories:
         if let Some(sub_m) = matches.subcommand_matches("apply") {
             let result = run_apply(sub_m);
             assert!(result.is_ok());
-    
+
             // Verify that the tasks were created correctly.
             let tasks = traverse_structure(Path::new("."), &read_config(&config_path).unwrap());
             assert_eq!(tasks.len(), 2); // One directory and one file task.
