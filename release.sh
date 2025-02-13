@@ -17,12 +17,12 @@ sed -i.bak "s/^version = \".*\"/version = \"${NEW_VERSION}\"/" Cargo.toml
 rm Cargo.toml.bak
 
 echo "🔄 Updating version in src/main.rs..."
-sed -i.bak 's/\(\.version("\)[^"]*\("\))/\1'${NEW_VERSION}'\2/' src/main.rs
+sed -i.bak "s/\.version(\"[^\"]*\")/\.version(\"${NEW_VERSION}\")/" src/main.rs
 rm src/main.rs.bak
 
 # Commit changes
 echo "📦 Committing version bump..."
-git add Cargo.toml src/main.rs
+git add Cargo.toml src/main.rs Cargo.lock
 git commit -m "Release v${NEW_VERSION}"
 
 # Create git tag
