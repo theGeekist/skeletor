@@ -23,10 +23,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          target: ${{ matrix.target }}
+          targets: ${{ matrix.target }}
 
       - name: Build binary
         run: cargo build --release --target ${{ matrix.target }}
@@ -38,42 +37,30 @@ jobs:
         shell: bash
         run: |
           BIN_NAME="skeletor"
-          OS="${{ matrix.os }}"
+          OS_CLEAN=$(echo "${{ matrix.os }}" | sed 's/-latest//')  # Standardize OS name
           TARGET="${{ matrix.target }}"
-          if [ "${OS}" == "windows-latest" ]; then
+
+          if [[ "$OS_CLEAN" == "windows" ]]; then
               BIN_NAME="${BIN_NAME}.exe"
-              ARTIFACT_NAME="${BIN_NAME}-${OS}-${TARGET}.zip"
-              # Check if zip is installed; if not, try installing via chocolatey.
-              if ! command -v zip > /dev/null 2>&1; then
-                  echo "zip command not found."
-                  if command -v choco > /dev/null 2>&1; then
-                      echo "Installing zip via chocolatey..."
-                      choco install zip -y
-                  else
-                      echo "zip is not installed and cannot be installed automatically."
-                      exit 1
-                  fi
-              fi
+              ARTIFACT_NAME="${BIN_NAME}-${OS_CLEAN}-${TARGET}.zip"
               zip "${ARTIFACT_NAME}" -j "target/${TARGET}/release/${BIN_NAME}"
           else
-              ARTIFACT_NAME="${BIN_NAME}-${OS}-${TARGET}.tar.gz"
+              ARTIFACT_NAME="${BIN_NAME}-${OS_CLEAN}-${TARGET}.tar.gz"
               tar -czf "${ARTIFACT_NAME}" -C "target/${TARGET}/release" "${BIN_NAME}"
           fi
+
           echo "Created ${ARTIFACT_NAME}"
+          echo "ARTIFACT_NAME=${ARTIFACT_NAME}" >> $GITHUB_ENV
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
         with:
-          files: skeletor-*.tar.gz skeletor-*.zip
+          files: ${{ env.ARTIFACT_NAME }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
       - name: Generate SHA256 Checksum
         shell: bash
         run: |
           echo "SHA256 Checksums:"
-          for file in skeletor-*.tar.gz skeletor-*.zip; do
-            if [ -f "$file" ]; then
-              sha256sum "$file"
-            fi
-          done
+          sha256sum ${{ env.ARTIFACT_NAME }}
