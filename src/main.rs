@@ -37,7 +37,7 @@ enum Task {
 /// Build the CLI interface with three subcommands: `apply`, `snapshot` and `info`
 fn parse_arguments() -> clap::ArgMatches {
     Command::new("Skeletor")
-        .version("2.1.1")
+        .version("2.2.0")
         .author("Jason Joseph Nathan")
         .about("A super optimised Rust scaffolding tool with snapshot annotations")
         .subcommand_required(true)
@@ -56,6 +56,13 @@ fn parse_arguments() -> clap::ArgMatches {
                         .short('o')
                         .long("overwrite")
                         .help("Overwrite existing files if specified")
+                        .action(ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("dry_run")
+                        .short('d')
+                        .long("dry-run")
+                        .help("Perform a trial run with no changes made")
                         .action(ArgAction::SetTrue),
                 ),
         )
@@ -88,6 +95,20 @@ fn parse_arguments() -> clap::ArgMatches {
                         .value_name("PATTERN_OR_FILE")
                         .help("A glob pattern or a file containing .gitignore style patterns. Can be used multiple times.")
                         .action(ArgAction::Append),
+                )
+                .arg(
+                    Arg::new("dry_run")
+                        .short('d')
+                        .long("dry-run")
+                        .help("Perform a trial run with no changes made")
+                        .action(ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("note")
+                        .short('n')
+                        .long("note")
+                        .value_name("NOTE")
+                        .help("Optional user note to include in the snapshot"),
                 ),
         )
         .subcommand(
@@ -281,13 +302,38 @@ fn snapshot_directory_inner(
     Ok((Yaml::Hash(mapping), binaries))
 }
 
-/// Runs the snapshot subcommand. Generates a snapshot with extra annotations and ignore support.
+/// Recursively computes statistics (number of files and directories) from a YAML structure.
+fn compute_stats(yaml: &Yaml) -> (usize, usize) {
+    let mut files = 0;
+    let mut dirs = 0;
+    if let Yaml::Hash(map) = yaml {
+        for (_k, v) in map {
+            match v {
+                Yaml::Hash(_) => {
+                    dirs += 1;
+                    let (sub_files, sub_dirs) = compute_stats(v);
+                    files += sub_files;
+                    dirs += sub_dirs;
+                }
+                Yaml::String(_) => {
+                    files += 1;
+                }
+                _ => {}
+            }
+        }
+    }
+    (files, dirs)
+}
+
+/// Runs the snapshot subcommand. Generates a snapshot with extra annotations, stats, and ignore support.
 fn run_snapshot(matches: &clap::ArgMatches) -> Result<(), SkeletorError> {
     let source_path = PathBuf::from(matches.get_one::<String>("source").unwrap());
     let output_path = matches.get_one::<String>("output").map(PathBuf::from);
     let include_contents = *matches
         .get_one::<bool>("include_contents")
         .unwrap_or(&false);
+    let dry_run = *matches.get_one::<bool>("dry_run").unwrap_or(&false);
+    let user_note = matches.get_one::<String>("note").map(|s| s.to_string());
 
     info!("Taking snapshot of folder: {:?}", source_path);
 
@@ -318,7 +364,6 @@ fn run_snapshot(matches: &clap::ArgMatches) -> Result<(), SkeletorError> {
     let globset = if !ignore_patterns.is_empty() {
         let mut builder = GlobSetBuilder::new();
         for pat in &ignore_patterns {
-            // It is good practice to trim whitespace.
             let pat = pat.trim();
             builder.add(Glob::new(pat).map_err(|e| SkeletorError::Config(e.to_string()))?);
         }
@@ -335,8 +380,11 @@ fn run_snapshot(matches: &clap::ArgMatches) -> Result<(), SkeletorError> {
     let (dir_snapshot, binary_files) =
         snapshot_directory_with_ignore(&source_path, include_contents, globset.as_ref())?;
 
+    // Compute stats.
+    let (files_count, dirs_count) = compute_stats(&dir_snapshot);
+
     let now = Utc::now().to_rfc3339();
-    // If an output file exists, try to preserve its "created" timestamp.
+    // Preserve the "created" timestamp if output file exists.
     let created = if let Some(ref out_file) = output_path {
         if out_file.exists() {
             let existing = fs::read_to_string(out_file)?;
@@ -354,11 +402,11 @@ fn run_snapshot(matches: &clap::ArgMatches) -> Result<(), SkeletorError> {
     };
     let updated = now;
 
-    let mut comments = format!("Snapshot generated from folder: {:?}", source_path);
+    let mut auto_info = format!("Snapshot generated from folder: {:?}", source_path);
     if binary_files.is_empty() {
-        comments.push_str("\nNo binary files detected.");
+        auto_info.push_str("\nNo binary files detected.");
     } else {
-        comments.push_str(&format!(
+        auto_info.push_str(&format!(
             "\nBinary files detected (contents omitted): {:?}",
             binary_files
         ));
@@ -368,12 +416,28 @@ fn run_snapshot(matches: &clap::ArgMatches) -> Result<(), SkeletorError> {
     let mut top_map = LinkedHashMap::new(); // Use LinkedHashMap instead of BTreeMap
     top_map.insert(Yaml::String("created".into()), Yaml::String(created));
     top_map.insert(Yaml::String("updated".into()), Yaml::String(updated));
-    top_map.insert(Yaml::String("comments".into()), Yaml::String(comments));
-    // Include the ignore patterns (blacklist) if any.
+    top_map.insert(
+        Yaml::String("generated_comments".into()),
+        Yaml::String(auto_info),
+    );
+    if let Some(note) = user_note {
+        top_map.insert(Yaml::String("notes".into()), Yaml::String(note));
+    }
     if !ignore_patterns.is_empty() {
         let patterns_yaml: Vec<Yaml> = ignore_patterns.into_iter().map(Yaml::String).collect();
         top_map.insert(Yaml::String("blacklist".into()), Yaml::Array(patterns_yaml));
     }
+    // Add stats.
+    let mut stats_map = LinkedHashMap::new();
+    stats_map.insert(
+        Yaml::String("files".into()),
+        Yaml::String(files_count.to_string()),
+    );
+    stats_map.insert(
+        Yaml::String("directories".into()),
+        Yaml::String(dirs_count.to_string()),
+    );
+    top_map.insert(Yaml::String("stats".into()), Yaml::Hash(stats_map));
     top_map.insert(Yaml::String("directories".into()), dir_snapshot);
     let snapshot_yaml = Yaml::Hash(top_map);
 
@@ -384,7 +448,10 @@ fn run_snapshot(matches: &clap::ArgMatches) -> Result<(), SkeletorError> {
         emitter.dump(&snapshot_yaml).unwrap();
     }
 
-    if let Some(out_file) = output_path {
+    if dry_run {
+        println!("Dry run enabled. The following snapshot would be generated:");
+        println!("{}", out_str);
+    } else if let Some(out_file) = output_path {
         fs::write(&out_file, out_str.clone())?;
         println!("Snapshot written to {:?}", out_file);
     } else {
@@ -395,13 +462,14 @@ fn run_snapshot(matches: &clap::ArgMatches) -> Result<(), SkeletorError> {
 }
 
 /// Runs the apply subcommand: reads the YAML config and creates files/directories.
+/// In dry-run mode, the tasks are printed without performing any filesystem changes.
 fn run_apply(matches: &clap::ArgMatches) -> Result<(), SkeletorError> {
     let input_path = matches
         .get_one::<String>("input")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(".skeletorrc"));
-
     let overwrite = *matches.get_one::<bool>("overwrite").unwrap_or(&false);
+    let dry_run = *matches.get_one::<bool>("dry_run").unwrap_or(&false);
 
     info!("Reading input file: {:?}", input_path);
     info!("Overwrite flag: {:?}", overwrite);
@@ -418,18 +486,25 @@ fn run_apply(matches: &clap::ArgMatches) -> Result<(), SkeletorError> {
 
     let tasks = traverse_structure(Path::new("."), &config);
 
-    create_files_and_directories(&tasks, overwrite)?;
-
-    let duration = start_time.elapsed();
-    println!(
-        "\nSuccessfully generated files and directories in {:?}.",
-        duration
-    );
+    if dry_run {
+        println!("Dry run enabled. The following tasks would be executed:");
+        for task in tasks.iter() {
+            println!("{}", task_path(task));
+        }
+        println!("Dry run complete. No changes were made.");
+    } else {
+        create_files_and_directories(&tasks, overwrite)?;
+        let duration = start_time.elapsed();
+        println!(
+            "\nSuccessfully generated files and directories in {:?}.",
+            duration
+        );
+    }
 
     Ok(())
 }
 
-/// Runs the info subcommand: prints annotation information from a .skeletorrc file.
+/// Runs the info subcommand: prints annotation and stats information from a .skeletorrc file.
 fn run_info(matches: &clap::ArgMatches) -> Result<(), SkeletorError> {
     let input_path = matches
         .get_one::<String>("input")
@@ -451,10 +526,28 @@ fn run_info(matches: &clap::ArgMatches) -> Result<(), SkeletorError> {
     } else {
         println!("  No updated timestamp available.");
     }
-    if let Some(comments) = doc["comments"].as_str() {
-        println!("  Comments: {}", comments);
+    if let Some(gen_comments) = doc["generated_comments"].as_str() {
+        println!("  Generated comments: {}", gen_comments);
     } else {
-        println!("  No comments available.");
+        println!("  No generated comments available.");
+    }
+    if let Some(notes) = doc["notes"].as_str() {
+        println!("  User notes: {}", notes);
+    } else {
+        println!("  No user notes available.");
+    }
+    if let Some(stats) = doc["stats"].as_hash() {
+        let files = stats
+            .get(&Yaml::String("files".into()))
+            .and_then(|v| v.as_str())
+            .unwrap_or("0");
+        let directories = stats
+            .get(&Yaml::String("directories".into()))
+            .and_then(|v| v.as_str())
+            .unwrap_or("0");
+        println!("  Stats: {} files, {} directories", files, directories);
+    } else {
+        println!("  No stats available.");
     }
     if let Some(blacklist) = doc["blacklist"].as_vec() {
         let patterns: Vec<&str> = blacklist.iter().filter_map(|p| p.as_str()).collect();
@@ -546,6 +639,13 @@ mod tests {
                             .long("overwrite")
                             .help("Overwrite existing files if specified")
                             .action(ArgAction::SetTrue),
+                    )
+                    .arg(
+                        Arg::new("dry_run")
+                            .short('d')
+                            .long("dry-run")
+                            .help("Dry run")
+                            .action(ArgAction::SetTrue),
                     ),
             )
             .get_matches_from(args);
@@ -553,6 +653,8 @@ mod tests {
         if let Some(sub_m) = matches.subcommand_matches("apply") {
             assert_eq!(sub_m.get_one::<String>("input").unwrap(), "structure.yaml");
             assert_eq!(*sub_m.get_one::<bool>("overwrite").unwrap(), true);
+            // By default, dry_run should be false.
+            assert_eq!(*sub_m.get_one::<bool>("dry_run").unwrap_or(&false), false);
         } else {
             panic!("Apply subcommand not found");
         }
