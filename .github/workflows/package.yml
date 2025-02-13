@@ -35,6 +35,7 @@ jobs:
         run: cargo test --release --target ${{ matrix.target }}
 
       - name: Package binary
+        shell: bash
         run: |
           BIN_NAME="skeletor"
           OS="${{ matrix.os }}"
