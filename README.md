@@ -1,5 +1,5 @@
 # Skeletor
-![Build Status](https://github.com/jasonnathan/skeletor/actions/workflows/yourworkflow.yml/badge.svg)
+![Build Status](https://github.com/jasonnathan/skeletor/actions/workflows/CI.yml/badge.svg)
 [![codecov](https://codecov.io/gh/jasonnathan/skeletor/branch/main/graph/badge.svg)](https://codecov.io/gh/jasonnathan/skeletor)
 
 
@@ -29,12 +29,26 @@ A super optimized Rust scaffolding tool for generating files and directories fro
 
 ## Installation
 
+### Using Install Script
+Use the provided install script to download and install the latest version of Skeletor.
+
+```bash
+curl -L https://github.com/jasonnathan/skeletor/releases/latest/download/install.sh | bash
+```
+
+### Homebrew (macOS)
+
+```bash
+brew tap jasonnathan/skeletor
+brew install skeletor
+```
+
 ### From Source
 
 Ensure you have Rust and Cargo installed.
 
 ```bash
-git clone https://github.com/yourusername/skeletor.git
+git clone https://github.com/jasonnathan/skeletor.git
 cd skeletor
 cargo install --path .
 ```
