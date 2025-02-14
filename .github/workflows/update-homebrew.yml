@@ -18,8 +18,35 @@ jobs:
       - name: Fetch Latest Release Info
         id: release_info
         run: |
-          VERSION=$(gh release view --repo jasonnathan/skeletor --json tagName -q ".tagName" | sed 's/v//')
-          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "🔍 Fetching latest release version..."
+          for i in {1..10}; do
+            VERSION=$(gh release view --repo jasonnathan/skeletor --json tagName -q ".tagName" | sed 's/v//')
+            if [[ -n "$VERSION" ]]; then
+              echo "✅ Found version: v$VERSION"
+              echo "VERSION=$VERSION" >> $GITHUB_ENV
+              exit 0
+            fi
+            echo "⏳ Release not found yet, retrying in 10s..."
+            sleep 10
+          done
+          echo "❌ Failed to fetch latest release version!"
+          exit 1
+
+      - name: Wait for Release Asset
+        run: |
+          echo "⏳ Waiting for macOS binary to be available..."
+          ASSET_URL="https://github.com/jasonnathan/skeletor/releases/download/v${VERSION}/skeletor-macos-x86_64-apple-darwin.tar.gz"
+          for i in {1..10}; do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$ASSET_URL")
+            if [[ "$HTTP_STATUS" == "200" ]]; then
+              echo "✅ Binary is available!"
+              exit 0
+            fi
+            echo "⏳ Binary not available yet, retrying in 10s..."
+            sleep 10
+          done
+          echo "❌ Failed to download macOS binary!"
+          exit 1
 
       - name: Download macOS Binary & Compute Checksum
         run: |
