@@ -63,7 +63,8 @@ fn parse_arguments() -> clap::ArgMatches {
                     Arg::new("include_contents")
                         .long("include-contents")
                         .help("Include file contents in the snapshot (for text files; binary files will be empty)")
-                        .action(ArgAction::SetTrue),
+                        .action(ArgAction::SetTrue)
+                        .default_value("true"),
                 )
                 .arg(
                     Arg::new("ignore")
