@@ -1,12 +1,9 @@
 use crate::errors::SkeletorError;
 use globset::GlobSet;
-use indicatif::{ProgressBar, ProgressStyle};
-use linked_hash_map::LinkedHashMap;
 use log::{info, warn};
-use std::collections::VecDeque;
+use serde_yaml::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
-use yaml_rust::Yaml;
 
 /// A task to either create a directory or a file.
 #[derive(Debug, PartialEq)]
@@ -16,22 +13,22 @@ pub enum Task {
 }
 
 /// Traverses the YAML structure and returns a list of tasks to create directories and files.
-pub fn traverse_structure(base: &Path, yaml: &Yaml) -> Vec<Task> {
+pub fn traverse_structure(base: &Path, yaml: &Value) -> Vec<Task> {
     let mut tasks = Vec::new();
-    let mut queue = VecDeque::new();
-    queue.push_back((base.to_path_buf(), yaml));
+    let mut queue = Vec::new();
+    queue.push((base.to_path_buf(), yaml));
 
-    while let Some((current_path, node)) = queue.pop_front() {
-        if let Yaml::Hash(map) = node {
+    while let Some((current_path, node)) = queue.pop() {
+        if let Some(map) = node.as_mapping() {
             for (key, value) in map {
-                if let Yaml::String(key_str) = key {
+                if let Some(key_str) = key.as_str() {
                     let new_path = current_path.join(key_str);
                     match value {
-                        Yaml::Hash(_) => {
+                        Value::Mapping(_) => {
                             tasks.push(Task::Dir(new_path.clone()));
-                            queue.push_back((new_path, value));
+                            queue.push((new_path, value));
                         }
-                        Yaml::String(content) => {
+                        Value::String(content) => {
                             tasks.push(Task::File(new_path, content.clone()));
                         }
                         _ => {}
@@ -49,20 +46,10 @@ pub fn create_files_and_directories(
     tasks: &[Task],
     overwrite: bool,
 ) -> Result<(usize, usize), SkeletorError> {
-    let total_tasks = tasks.len() as u64;
-    let pb = ProgressBar::new(total_tasks);
-    pb.set_style(
-        ProgressStyle::with_template(
-            "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta}) - {msg}",
-        )
-        .unwrap()
-        .progress_chars("#>-"),
-    );
-
     let mut files_created = 0;
     let mut dirs_created = 0;
 
-    for task in tasks {
+    for (i, task) in tasks.iter().enumerate() {
         match task {
             Task::Dir(path) => {
                 if let Err(e) = fs::create_dir_all(path) {
@@ -94,14 +81,19 @@ pub fn create_files_and_directories(
                 }
             }
         }
-        pb.inc(1);
-        pb.set_message(format!("Processing: {}", task_path(task)));
+
+        // **Log Progress Every 100 Files to Avoid IO Overhead**
+        if i % 1000 == 0 && i > 0 {
+            info!("Processed {} out of {} tasks...", i, tasks.len());
+        }
     }
 
-    pb.finish_with_message("Done");
+    info!(
+        "Task Complete: {} directories and {} files created.",
+        dirs_created, files_created
+    );
     Ok((files_created, dirs_created))
 }
-
 /// Returns a string representation of a task.
 pub fn task_path(task: &Task) -> String {
     match task {
@@ -110,22 +102,35 @@ pub fn task_path(task: &Task) -> String {
     }
 }
 
-/// Traverses the directory structure and returns a list of tasks to create a snapshot.
 pub fn traverse_directory(
     base: &Path,
     include_contents: bool,
     ignore: Option<&GlobSet>,
-) -> Result<(Yaml, Vec<String>), SkeletorError> {
-    let mut mapping = LinkedHashMap::new();
+) -> Result<(Value, Vec<String>), SkeletorError> {
+    let mut mapping = serde_yaml::Mapping::new();
     let mut binaries: Vec<String> = vec![];
 
     for entry in fs::read_dir(base)? {
         let entry = entry?;
-        let file_name = entry.file_name().to_string_lossy().into_owned();
-        let new_relative = base.join(&file_name);
+        let file_name = entry.file_name();
+        let file_name_string = file_name.to_string_lossy().into_owned();
+        let new_relative = base.join(&file_name_string);
+
+        // ✅ Normalize path to relative string
+        let mut relative_str = new_relative
+            .strip_prefix(base)
+            .unwrap_or(&new_relative)
+            .to_string_lossy()
+            .replace("\\", "/");
+
+        // ✅ If it's a directory, append `/` to match `.gitignore`
+        if new_relative.is_dir() {
+            relative_str.push('/');
+        }
 
         if let Some(globset) = ignore {
-            if globset.is_match(new_relative.to_string_lossy().as_ref()) {
+            if globset.is_match(&relative_str) {
+                println!("Ignoring: {:?}", relative_str); // Debugging
                 continue;
             }
         }
@@ -133,65 +138,66 @@ pub fn traverse_directory(
         let path = entry.path();
         if path.is_dir() {
             let (sub_yaml, mut sub_binaries) = traverse_directory(&path, include_contents, ignore)?;
-            mapping.insert(Yaml::String(file_name), sub_yaml);
+            mapping.insert(Value::String(file_name_string), sub_yaml);
             binaries.append(&mut sub_binaries);
         } else if path.is_file() {
-            let mut is_binary = false;
-            let content = if include_contents {
-                let bytes = fs::read(&path)?;
-                match String::from_utf8(bytes) {
-                    Ok(text) => text,
-                    Err(_) => {
-                        is_binary = true;
-                        String::new()
+            if include_contents {
+                match fs::read(&path) {
+                    Ok(bytes) => {
+                        if let Ok(text) = String::from_utf8(bytes.clone()) {
+                            // println!("Storing file: {:?}", path);
+                            mapping.insert(Value::String(file_name_string), Value::String(text));
+                        } else {
+                            // println!("Binary file detected: {:?}", path);
+                            binaries.push(new_relative.to_string_lossy().into_owned());
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Error reading file {:?}: {}", path, e);
                     }
                 }
-            } else {
-                String::new()
-            };
-
-            if is_binary {
-                binaries.push(new_relative.to_string_lossy().into_owned());
             }
-            mapping.insert(Yaml::String(file_name), Yaml::String(content));
         }
     }
 
-    Ok((Yaml::Hash(mapping), binaries))
+    Ok((Value::Mapping(mapping), binaries))
 }
 
 /// Computes statistics (number of files and directories) from a YAML structure.
-pub fn compute_stats(yaml: &Yaml) -> (usize, usize) {
+pub fn compute_stats(yaml: &Value) -> (usize, usize) {
     let mut files = 0;
     let mut dirs = 0;
-    if let Yaml::Hash(map) = yaml {
-        for (_k, v) in map {
+
+    if let Some(map) = yaml.as_mapping() {
+        for (_, v) in map {
             match v {
-                Yaml::Hash(_) => {
+                Value::Mapping(_) => {
                     dirs += 1;
                     let (sub_files, sub_dirs) = compute_stats(v);
                     files += sub_files;
                     dirs += sub_dirs;
                 }
-                Yaml::String(_) => {
+                Value::String(_) => {
                     files += 1;
                 }
                 _ => {}
             }
         }
     }
+
     (files, dirs)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_yaml::Value;
+    use std::fs;
     use tempfile::tempdir;
-    use yaml_rust::YamlLoader;
 
     #[test]
     fn test_traverse_structure() {
-        let structure = YamlLoader::load_from_str(
+        let structure: Value = serde_yaml::from_str(
             r#"
             src:
               index.js: "console.log('Hello, world!');"
@@ -199,8 +205,7 @@ mod tests {
                 Header.js: "// Header component"
             "#,
         )
-        .unwrap()[0]
-            .clone();
+        .expect("Failed to parse YAML");
 
         let tasks = traverse_structure(Path::new("."), &structure);
 
@@ -271,9 +276,9 @@ mod tests {
 
         let (yaml_structure, binaries) = traverse_directory(&test_dir, false, None).unwrap();
 
-        if let Yaml::Hash(map) = yaml_structure {
+        if let Value::Mapping(map) = yaml_structure {
             // Expect "src" key exists.
-            assert!(map.contains_key(&Yaml::String("src".into())));
+            assert!(map.contains_key(&Value::String("src".into())));
         } else {
             panic!("Expected a YAML hash");
         }
@@ -289,7 +294,7 @@ mod tests {
           components:
             Header.js: "// Header component"
         "#;
-        let yaml = YamlLoader::load_from_str(yaml_str).unwrap()[0].clone();
+        let yaml: Value = serde_yaml::from_str(yaml_str).expect("Failed to parse YAML");
 
         let (files, dirs) = compute_stats(&yaml);
 

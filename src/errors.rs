@@ -6,7 +6,7 @@ pub enum SkeletorError {
     #[error("IO error: {0}")]
     Io(#[from] io::Error),
     #[error("YAML parsing error: {0}")]
-    Yaml(#[from] yaml_rust::ScanError),
+    Yaml(#[from] serde_yaml::Error),
     #[error("Configuration error: {0}")]
     Config(String),
 }

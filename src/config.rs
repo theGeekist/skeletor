@@ -1,20 +1,19 @@
 use crate::errors::SkeletorError;
+use serde_yaml::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
-use yaml_rust::{Yaml, YamlLoader};
 
-/// Reads the YAML configuration file and extracts the "directories" key.
-/// (Any extra keys are ignored by the apply functionality.)
-pub fn read_config(path: &Path) -> Result<Yaml, SkeletorError> {
+pub fn read_config(path: &Path) -> Result<Value, SkeletorError> {
     let content = fs::read_to_string(path)?;
-    let yaml_docs = YamlLoader::load_from_str(&content)?;
+    let yaml_doc: Value = serde_yaml::from_str(&content)
+        .map_err(|e| SkeletorError::Config(format!("YAML parsing error: {}", e)))?;
 
-    let directories = yaml_docs
-        .first()
-        .and_then(|doc| doc["directories"].as_hash())
+    let directories = yaml_doc
+        .get("directories")
+        .and_then(Value::as_mapping)
         .ok_or_else(|| SkeletorError::Config("'directories' key is missing or invalid".into()))?;
 
-    Ok(Yaml::Hash(directories.clone()))
+    Ok(Value::Mapping(directories.clone()))
 }
 
 /// Returns the provided file path or defaults to ".skeletorrc".
@@ -60,15 +59,17 @@ mod tests {
             components:
               Header.js: "// Header component"
         "#;
+
         let temp_dir = tempdir().unwrap();
         let test_file = temp_dir.path().join("test.yaml");
         fs::write(&test_file, yaml_str).unwrap();
 
         let config = read_config(&test_file).unwrap();
-        if let Yaml::Hash(map) = config {
-            assert!(map.contains_key(&Yaml::String("src".into())));
+
+        if let Value::Mapping(map) = config {
+            assert!(map.contains_key(&Value::String("src".to_string())));
         } else {
-            panic!("Expected a YAML hash");
+            panic!("Expected a YAML mapping");
         }
     }
 }

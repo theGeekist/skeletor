@@ -1,8 +1,8 @@
 use crate::config::default_file_path;
 use crate::errors::SkeletorError;
 use clap::ArgMatches;
+use serde_yaml::Value;
 use std::fs;
-use yaml_rust::{Yaml, YamlLoader};
 
 /// Runs the info subcommand: prints annotation and stats information from a .skeletorrc file.
 pub fn run_info(matches: &ArgMatches) -> Result<(), SkeletorError> {
@@ -10,49 +10,46 @@ pub fn run_info(matches: &ArgMatches) -> Result<(), SkeletorError> {
     let input_path = default_file_path(matches.get_one::<String>("input"));
 
     let content = fs::read_to_string(&input_path)?;
-    let yaml_docs = YamlLoader::load_from_str(&content)?;
-    let doc = &yaml_docs[0];
+    let yaml_docs: Value = serde_yaml::from_str(&content)?; // Use `?` instead of expect
 
     println!("Information from {:?}:", input_path);
-    if let Some(created) = doc["created"].as_str() {
+
+    if let Some(created) = yaml_docs.get("created").and_then(Value::as_str) {
         println!("  Created: {}", created);
     } else {
         println!("  No created timestamp available.");
     }
-    if let Some(updated) = doc["updated"].as_str() {
+
+    if let Some(updated) = yaml_docs.get("updated").and_then(Value::as_str) {
         println!("  Updated: {}", updated);
     } else {
         println!("  No updated timestamp available.");
     }
-    if let Some(gen_comments) = doc["generated_comments"].as_str() {
+
+    if let Some(gen_comments) = yaml_docs.get("generated_comments").and_then(Value::as_str) {
         println!("  Generated comments: {}", gen_comments);
     } else {
         println!("  No generated comments available.");
     }
-    if let Some(notes) = doc["notes"].as_str() {
-        println!("  User notes: {}", notes);
-    } else {
-        println!("  No user notes available.");
-    }
-    if let Some(stats) = doc["stats"].as_hash() {
-        let files = stats
-            .get(&Yaml::String("files".into()))
-            .and_then(|v| v.as_str())
-            .unwrap_or("0");
+
+    if let Some(stats) = yaml_docs.get("stats").and_then(Value::as_mapping) {
+        let files = stats.get("files").and_then(Value::as_u64).unwrap_or(0);
         let directories = stats
-            .get(&Yaml::String("directories".into()))
-            .and_then(|v| v.as_str())
-            .unwrap_or("0");
+            .get("directories")
+            .and_then(Value::as_u64)
+            .unwrap_or(0);
         println!("  Stats: {} files, {} directories", files, directories);
     } else {
         println!("  No stats available.");
     }
-    if let Some(blacklist) = doc["blacklist"].as_vec() {
-        let patterns: Vec<&str> = blacklist.iter().filter_map(|p| p.as_str()).collect();
+
+    if let Some(blacklist) = yaml_docs.get("blacklist").and_then(Value::as_sequence) {
+        let patterns: Vec<&str> = blacklist.iter().filter_map(Value::as_str).collect();
         println!("  Blacklist patterns: {:?}", patterns);
     } else {
         println!("  No blacklist information available.");
     }
+
     Ok(())
 }
 
