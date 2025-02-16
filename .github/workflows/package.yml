@@ -7,7 +7,6 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
@@ -15,9 +14,11 @@ jobs:
             target: x86_64-unknown-linux-gnu
           - os: macos-latest
             target: x86_64-apple-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -53,7 +54,7 @@ jobs:
         shell: bash
         run: |
           BIN_NAME="skeletor"
-          OS_CLEAN=$(echo "${{ matrix.os }}" | sed 's/-latest//')  # Standardize OS name
+          OS_CLEAN=$(echo "${{ matrix.os }}" | sed 's/-latest//')  # Standardise OS name
           TARGET="${{ matrix.target }}"
 
           if [[ "$OS_CLEAN" == "windows" ]]; then
