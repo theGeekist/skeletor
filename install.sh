@@ -5,7 +5,9 @@ set -euo pipefail
 command -v curl >/dev/null 2>&1 || { echo "❌ 'curl' is required but not installed."; exit 1; }
 
 REPO="jasonnathan/skeletor"
-TMP_DIR="/tmp"  # You could use mktemp for more robust temporary directories
+# Create a unique temporary directory and ensure cleanup on exit
+TMP_DIR=$(mktemp -d)
+trap 'rm -rf "$TMP_DIR"' EXIT
 
 # Detect OS using OSTYPE
 case "$OSTYPE" in
@@ -15,16 +17,16 @@ case "$OSTYPE" in
   *) echo "❌ Unsupported OS: $OSTYPE" && exit 1 ;;
 esac
 
-# For asset naming, use "ubuntu" for Linux, otherwise use OS
+# For asset naming, Linux assets are tagged as "ubuntu"
 if [[ "$OS" == "linux" ]]; then
   OS_STR="ubuntu"
 else
   OS_STR="$OS"
 fi
 
-# Determine architecture
+# Determine architecture based on OS
 if [[ "$OS" == "windows" ]]; then
-    # Windows: Try wmic first, fallback to uname
+    # For Windows, use wmic if available
     if command -v wmic >/dev/null 2>&1; then
         ARCH=$(wmic os get osarchitecture | grep -Eo '64-bit|32-bit' || echo "unknown")
     else
@@ -37,12 +39,19 @@ if [[ "$OS" == "windows" ]]; then
     else
         echo "❌ Unsupported architecture on Windows: $ARCH" && exit 1
     fi
-else
-    # For macOS and Linux, we force the architecture to x86_64
+elif [[ "$OS" == "macos" ]]; then
+    ARCH=$(uname -m)
+    if [[ "$ARCH" == "arm64" ]]; then
+        ARCH="aarch64"
+    else
+        ARCH="x86_64"
+    fi
+elif [[ "$OS" == "linux" ]]; then
+    # Currently only the x86_64 Linux build is provided
     ARCH="x86_64"
 fi
 
-# Determine target and extension based on OS and architecture
+# Determine target and file extension based on OS and architecture
 EXT="tar.gz"
 if [[ "$OS" == "macos" ]]; then
     TARGET="${ARCH}-apple-darwin"
@@ -62,7 +71,7 @@ else
   BINARY_NAME="skeletor"
 fi
 
-# Fetch the latest version using sed for portability
+# Fetch latest version using sed (avoids non-portable grep -P)
 VERSION=$(curl -s "https://api.github.com/repos/${REPO}/releases/latest" | \
           sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
 if [[ -z "$VERSION" ]]; then
@@ -74,10 +83,10 @@ fi
 ASSET="${BINARY_NAME}-${OS_STR}-${TARGET}.${EXT}"
 URL="https://github.com/${REPO}/releases/download/${VERSION}/${ASSET}"
 
-echo "🔽 Downloading ${BINARY_NAME} ${VERSION} for ${OS}/${ARCH}..."
+echo "🔽 Downloading ${BINARY_NAME} ${VERSION} for ${OS} ($ARCH)..."
 curl -L --fail "$URL" -o "${TMP_DIR}/${ASSET}"
 
-# Extract and install the asset
+# Extract & install
 if [[ "$OS" == "windows" ]]; then
     echo "📦 Extracting Windows binary..."
     command -v unzip >/dev/null 2>&1 || { echo "❌ 'unzip' is required but not installed."; exit 1; }
@@ -103,6 +112,4 @@ else
     echo "✅ Installed to $INSTALL_DIR"
 fi
 
-# Cleanup
-rm -f "${TMP_DIR}/${ASSET}"
 echo "🎉 Installation complete! Run 'skeletor --help' to get started."
