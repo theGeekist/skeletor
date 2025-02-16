@@ -5,7 +5,7 @@ set -euo pipefail
 command -v curl >/dev/null 2>&1 || { echo "❌ 'curl' is required but not installed."; exit 1; }
 
 REPO="jasonnathan/skeletor"
-TMP_DIR="/tmp"  # Using /tmp; consider mktemp if you want a unique dir per run
+TMP_DIR="/tmp"  # Consider using mktemp for uniqueness if needed
 
 # Detect OS using OSTYPE
 case "$OSTYPE" in
@@ -14,6 +14,13 @@ case "$OSTYPE" in
   msys*|cygwin*|win32*|win64*) OS="windows" ;;
   *) echo "❌ Unsupported OS: $OSTYPE" && exit 1 ;;
 esac
+
+# Set OS string for asset naming
+if [[ "$OS" == "linux" ]]; then
+  OS_STR="ubuntu"
+else
+  OS_STR="$OS"
+fi
 
 # Detect Architecture
 if [[ "$OS" == "windows" ]]; then
@@ -41,9 +48,7 @@ case "$ARCH" in
 esac
 
 # Determine platform target based on OS and architecture
-BINARY="skeletor"
 EXT="tar.gz"
-
 if [[ "$OS" == "macos" ]]; then
     TARGET="${ARCH}-apple-darwin"
 elif [[ "$OS" == "linux" ]]; then
@@ -55,7 +60,14 @@ else
     echo "❌ Unsupported OS detected." && exit 1
 fi
 
-# Fetch latest version using sed (dependency free and portable)
+# Set binary name for asset naming (note .exe for Windows)
+if [[ "$OS" == "windows" ]]; then
+  BINARY_NAME="skeletor.exe"
+else
+  BINARY_NAME="skeletor"
+fi
+
+# Fetch latest version using sed for portability
 VERSION=$(curl -s "https://api.github.com/repos/${REPO}/releases/latest" | \
           sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
 if [[ -z "$VERSION" ]]; then
@@ -64,10 +76,10 @@ if [[ -z "$VERSION" ]]; then
 fi
 
 # Define asset URL
-ASSET="${BINARY}-${OS}-${TARGET}.${EXT}"
+ASSET="${BINARY_NAME}-${OS_STR}-${TARGET}.${EXT}"
 URL="https://github.com/${REPO}/releases/download/${VERSION}/${ASSET}"
 
-echo "🔽 Downloading ${BINARY} ${VERSION} for ${OS}/${ARCH}..."
+echo "🔽 Downloading ${BINARY_NAME} ${VERSION} for ${OS}/${ARCH}..."
 curl -L --fail "$URL" -o "${TMP_DIR}/${ASSET}"
 
 # Extract & Install
@@ -83,14 +95,14 @@ else
     echo "📦 Extracting binary..."
     command -v tar >/dev/null 2>&1 || { echo "❌ 'tar' is required but not installed."; exit 1; }
     tar -xzf "${TMP_DIR}/${ASSET}" -C "${TMP_DIR}"
-    chmod +x "${TMP_DIR}/${BINARY}"
+    chmod +x "${TMP_DIR}/skeletor"
 
     # Install to /usr/local/bin
     INSTALL_DIR="/usr/local/bin"
     if [[ -w "$INSTALL_DIR" ]]; then
-        mv "${TMP_DIR}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
+        mv "${TMP_DIR}/skeletor" "${INSTALL_DIR}/skeletor"
     else
-        sudo mv "${TMP_DIR}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
+        sudo mv "${TMP_DIR}/skeletor" "${INSTALL_DIR}/skeletor"
     fi
 
     echo "✅ Installed to $INSTALL_DIR"
