@@ -15,7 +15,7 @@ case "$OSTYPE" in
   *) echo "❌ Unsupported OS: $OSTYPE" && exit 1 ;;
 esac
 
-# Set OS string for asset naming
+# Set OS string for asset naming (note: Linux assets are tagged as "ubuntu")
 if [[ "$OS" == "linux" ]]; then
   OS_STR="ubuntu"
 else
@@ -47,6 +47,11 @@ case "$ARCH" in
     *) echo "❌ Unsupported architecture: $ARCH" && exit 1 ;;
 esac
 
+# For macOS and Linux, force architecture to x86_64 as that is the only supported build.
+if [[ "$OS" == "macos" || "$OS" == "linux" ]]; then
+  ARCH="x86_64"
+fi
+
 # Determine platform target based on OS and architecture
 EXT="tar.gz"
 if [[ "$OS" == "macos" ]]; then
@@ -60,7 +65,7 @@ else
     echo "❌ Unsupported OS detected." && exit 1
 fi
 
-# Set binary name for asset naming (note .exe for Windows)
+# Set binary name for asset naming (note: .exe for Windows)
 if [[ "$OS" == "windows" ]]; then
   BINARY_NAME="skeletor.exe"
 else
