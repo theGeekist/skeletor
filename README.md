@@ -57,24 +57,37 @@ skeletor apply --dry-run
 
 ## 🛠️ Installation
 
-### **Using Install Script**
+### Option 1: Using Install Script (Linux/macOS)
+For a quick installation:  
 ```bash
-curl -L https://raw.githubusercontent.com/jasonnathan/skeletor/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/jasonnathan/skeletor/main/install.sh | bash
 ```
+⚠️ **Note:** Review the script before running to ensure security.  
 
-### **Homebrew (macOS)**
+---
+
+### Option 2: Homebrew (macOS & Linux)
 ```bash
 brew tap jasonnathan/skeletor
 brew install skeletor
 ```
+💡 If you already have Homebrew installed, this is the easiest method.  
 
-### **From Source**
-Ensure Rust & Cargo are installed.
+### Option 3: Cargo (Recommended for Rust Users)
+If you have Rust & Cargo installed, install directly from [crates.io](https://crates.io/crates/skeletor):  
+```bash
+cargo install skeletor
+```
+🔹 This ensures you always get the latest stable version.  
+
+### Option 4: Build from Source
+If you prefer to install manually:  
 ```bash
 git clone https://github.com/jasonnathan/skeletor.git
 cd skeletor
 cargo install --path .
 ```
+🛠️ Rust & Cargo need to be installed on your system.  
 
 ---
 
@@ -105,12 +118,13 @@ Capture a **YAML snapshot** of an existing folder.
 
 ### **Create a Snapshot**
 ```bash
-skeletor snapshot my_project --output snapshot.yaml
+skeletor snapshot ./
 ```
 
 ### **Options**
-- `--ignore "*.log"` → Exclude files based on patterns (a path works too).  
-- `--note "Initial snapshot"` → Add custom notes.
+- `-o custom.yml`  → Path to custom yaml file (defaults to `.skeletorrc`)
+- `-i "*.log"` → Exclude files based on patterns (a path works too).  
+- `-n "Initial snapshot"` → Add custom notes.
 
 ---
 
