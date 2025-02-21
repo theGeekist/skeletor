@@ -108,9 +108,6 @@ cargo install --path .
 - **Metadata & Stats**  
   Includes timestamps, file counts, and user-defined notes.
 
-- **Progress Visualization**  
-  A real-time progress bar provides immediate feedback.
-
 ---
 
 ## 📸 Snapshot Mode
