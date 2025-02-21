@@ -16,36 +16,36 @@ fn parse_arguments() -> clap::ArgMatches {
     Command::new("Skeletor")
         .version("2.2.21")
         .author("Jason Joseph Nathan")
-        .about("A super optimised Rust scaffolding tool with snapshot annotations")
+        .about("A blazing-fast Rust scaffolding tool with snapshot capabilities.")
         .subcommand_required(true)
         .subcommand(
             Command::new("apply")
-                .about("Applies a YAML configuration to generate files and directories")
+                .about("Creates files and directories based on a YAML configuration")
                 .arg(
                     Arg::new("input")
                         .short('i')
                         .long("input")
                         .value_name("FILE")
-                        .help("Specify the input YAML configuration file (defaults to .skeletorrc)"),
+                        .help("YAML configuration file (defaults to .skeletorrc)"),
                 )
                 .arg(
                     Arg::new("overwrite")
                         .short('o')
                         .long("overwrite")
-                        .help("Overwrite existing files if specified")
+                        .help("Overwrite existing files if they already exist")
                         .action(ArgAction::SetTrue),
                 )
                 .arg(
                     Arg::new("dry_run")
                         .short('d')
                         .long("dry-run")
-                        .help("Perform a trial run with no changes made")
+                        .help("Simulate execution without modifying files")
                         .action(ArgAction::SetTrue),
                 ),
         )
         .subcommand(
             Command::new("snapshot")
-                .about("Generates a .skeletorrc snapshot from an existing folder")
+                .about("Creates a .skeletorrc snapshot from an existing folder")
                 .arg(
                     Arg::new("source")
                         .value_name("FOLDER")
@@ -57,12 +57,12 @@ fn parse_arguments() -> clap::ArgMatches {
                         .short('o')
                         .long("output")
                         .value_name("FILE")
-                        .help("Output file for the generated snapshot YAML (prints to stdout if not provided)"),
+                        .help("Save snapshot YAML to a file (prints to stdout if omitted)"),
                 )
                 .arg(
                     Arg::new("include_contents")
                         .long("include-contents")
-                        .help("Include file contents in the snapshot (for text files; binary files will be empty)")
+                        .help("Include file contents for text files (binary files will be empty)")
                         .action(ArgAction::SetTrue)
                         .default_value("true"),
                 )
@@ -71,14 +71,14 @@ fn parse_arguments() -> clap::ArgMatches {
                         .short('I')
                         .long("ignore")
                         .value_name("PATTERN_OR_FILE")
-                        .help("A glob pattern or a file containing .gitignore style patterns. Can be used multiple times.")
+                        .help("Exclude files using glob patterns or a .gitignore-style file (multiple allowed)")
                         .action(ArgAction::Append),
                 )
                 .arg(
                     Arg::new("dry_run")
                         .short('d')
                         .long("dry-run")
-                        .help("Perform a trial run with no changes made")
+                        .help("Simulate execution without modifying files")
                         .action(ArgAction::SetTrue),
                 )
                 .arg(
@@ -86,18 +86,18 @@ fn parse_arguments() -> clap::ArgMatches {
                         .short('n')
                         .long("note")
                         .value_name("NOTE")
-                        .help("Optional user note to include in the snapshot"),
+                        .help("Attach a user-defined note to the snapshot"),
                 ),
         )
         .subcommand(
             Command::new("info")
-                .about("Prints annotation information from a .skeletorrc file")
+                .about("Displays metadata from a .skeletorrc file")
                 .arg(
                     Arg::new("input")
                         .short('i')
                         .long("input")
                         .value_name("FILE")
-                        .help("Specify the YAML configuration file (defaults to .skeletorrc)"),
+                        .help("YAML configuration file to inspect (defaults to .skeletorrc)"),
                 ),
         )
         .get_matches()
