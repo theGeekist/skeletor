@@ -9,7 +9,7 @@ repository = "https://github.com/jasonnathan/skeletor"
 homepage = "https://github.com/jasonnathan/skeletor"
 documentation = "https://docs.rs/skeletor"
 readme = "README.md"
-categories = ["command-line-utilities", "development-tools", "project-templates"]
+categories = ["command-line-utilities", "development-tools"]
 keywords = ["cli", "scaffolding", "codegen", "automation", "rust"]
 
 [dependencies]
