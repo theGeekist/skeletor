@@ -1,25 +1,31 @@
 # Skeletor
-![Build Status](https://github.com/jasonnathan/skeletor/actions/workflows/CI.yml/badge.svg)
-[![codecov](https://codecov.io/gh/jasonnathan/skeletor/branch/main/graph/badge.svg)](https://codecov.io/gh/jasonnathan/skeletor)
+<img src="https://github.com/jasonnathan/skeletor/actions/workflows/CI.yml/badge.svg" alt="Build Status">  
+<a href="https://codecov.io/gh/jasonnathan/skeletor"><img src="https://codecov.io/gh/jasonnathan/skeletor/branch/main/graph/badge.svg" alt="Code Coverage"></a>
 
-A **super optimized Rust scaffolding tool** for generating files and directories from a **YAML configuration**. Skeletor is **blazing fast**, capable of creating **thousands of files and folders in milliseconds**.
+<p align="center">
+  <strong>A blazing-fast Rust scaffolding tool.</strong><br>
+    Generate thousands of files and directories with file contents from a <code>YAML</code> configuration in milliseconds.
+<br>
+  <small>📸 Capture existing nested folders as YAML templates with snapshot mode.</small>
+</p>
+
 
 ## 🚀 Usage
+Skeletor simplifies **project scaffolding** with an easy-to-use YAML configuration.
 
-Skeletor is designed for **effortless project scaffolding** using a YAML configuration file.
 
-### **Generate Files and Directories in One Command** 
+### 🛠 Generate Files and Directories
 
-- with a `.skeletorrc` file
+#### With a `.skeletorrc` file
 ```bash
 skeletor apply
 ```
-- with a `custom.yml` config file 
+#### Using a custom YAML config
 ```bash
 skeletor apply -i custom.yml
 ```
 
-### **Example `.skeletorrc` Configuration**
+### 📁 Example .skeletorrc Configuration
 Create a YAML file (`.skeletorrc`) to define the directory structure:
 
 ```yaml
@@ -42,46 +48,39 @@ directories:
     version = "0.1.0"
 ```
 
-### **Apply the Configuration**
+**Apply the Configuration**
 ```bash
 skeletor apply
 ```
 📁 This will **generate the entire folder structure** instantly!
 
-### **Preview Without Modifications**
+**Preview Before Running**
 ```bash
 skeletor apply --dry-run
 ```
 
----
-
 ## 🛠️ Installation
 
-### Option 1: Using Install Script (Linux/macOS)
-For a quick installation:  
+### Option 1: Install via Script (Linux/macOS)
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jasonnathan/skeletor/main/install.sh | bash
 ```
-⚠️ **Note:** Review the script before running to ensure security.  
-
----
+⚠️ **Tip:** Review the script before running to ensure security.  
 
 ### Option 2: Homebrew (macOS & Linux)
 ```bash
 brew tap jasonnathan/skeletor
 brew install skeletor
 ```
-💡 If you already have Homebrew installed, this is the easiest method.  
+💡 Easiest method if Homebrew is installed. 
 
 ### Option 3: Cargo (Recommended for Rust Users)
-If you have Rust & Cargo installed, install directly from [crates.io](https://crates.io/crates/skeletor):  
 ```bash
 cargo install skeletor
 ```
-🔹 This ensures you always get the latest stable version.  
+🔹 Installs directly from crates.io.
 
-### Option 4: Build from Source
-If you prefer to install manually:  
+### Option 4: Build from Source 
 ```bash
 git clone https://github.com/jasonnathan/skeletor.git
 cd skeletor
@@ -89,41 +88,30 @@ cargo install --path .
 ```
 🛠️ Rust & Cargo need to be installed on your system.  
 
----
-
 ## 🔥 Features
-
-- **Instantly Generate Nested Files & Directories**  
-  Define project structures in YAML and apply them in one command.
-
-- **Dry-Run Mode**  
-  Preview directory creation without modifying the filesystem.
-
-- **Snapshot Mode**  
-  Convert an **existing folder** into a YAML `.skeletorrc` snapshot.
-
-- **Ignore Patterns & Binary File Detection**  
-  Supports `.gitignore`-style patterns, detects binary files, and omits content.
-
-- **Metadata & Stats**  
-  Includes timestamps, file counts, and user-defined notes.
-
----
+- ✅ Generate Nested Files & Directories Instantly
+- ✅ Dry-Run Mode – Preview before applying
+- ✅ Snapshot Mode – Convert an existing folder into YAML
+- ✅ Ignore Patterns & Binary File Detection
+- ✅ Metadata & Stats Included
 
 ## 📸 Snapshot Mode
-Capture a **YAML snapshot** of an existing folder.
+Capture a YAML snapshot of an existing folder.
 
-### **Create a Snapshot**
+**Create a Snapshot**
 ```bash
-skeletor snapshot ./
+skeletor snapshot .
+```
+**Ignore files and add a note**
+```bash
+skeletor snapshot -n "Removed .git folder"  -I .gitignore -I .git/ .
 ```
 
-### **Options**
-- `-o custom.yml`  → Path to custom yaml file (defaults to `.skeletorrc`)
-- `-i "*.log"` → Exclude files based on patterns (a path works too).  
-- `-n "Initial snapshot"` → Add custom notes.
 
----
+**Options**
+- `-o custom.yml`  → Path to custom yaml file (defaults to `.skeletorrc`)
+- `-I "*.log"` → Exclude files based on patterns (a path works too).  
+- `-n "Initial snapshot"` → Add custom notes.
 
 ## 📊 Info Mode
 Display metadata from a `.skeletorrc` file.
@@ -132,14 +120,10 @@ Display metadata from a `.skeletorrc` file.
 skeletor info
 ```
 
----
-
 ## 🤝 Contributing
 Contributions are welcome! Open an issue or submit a pull request.
 
 ## 📜 License
 This project is licensed under the MIT License.
 
----
-
-Enjoy **effortless scaffolding** with Skeletor! 🚀
+✨ Enjoy effortless scaffolding with Skeletor! 🚀
