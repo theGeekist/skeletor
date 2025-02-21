@@ -1,6 +1,6 @@
 [package]
 name = "skeletor"
-version = "2.2.21"
+version = "2.2.22"
 authors = ["Jason Joseph Nathan <jjnathanjr@gmail.com>"]
 edition = "2021"
 description = "A blazing-fast Rust scaffolding tool with YAML-driven snapshots."
