@@ -1,22 +1,23 @@
 [package]
 name = "skeletor"
 version = "2.2.20"
-authors = ["Jason Joseph Nathan <jjanthanjr@gmail.com>"]
+authors = ["Jason Joseph Nathan <jjnathanjr@gmail.com>"]
 edition = "2021"
 description = "A super optimized Rust scaffolding tool."
 license = "MIT"
 repository = "https://github.com/jasonnathan/skeletor"
 homepage = "https://github.com/jasonnathan/skeletor"
-documentation = "https://github.com/jasonnathan/skeletor/blob/main/README.md"
+documentation = "https://docs.rs/skeletor"
+readme = "README.md"
+categories = ["command-line-utilities", "development-tools", "project-templates"]
+keywords = ["cli", "scaffolding", "codegen", "automation", "rust"]
 
 [dependencies]
 chrono = "0.4.39"
 clap = {version = "4.5.20", features = ["derive"]}
 env_logger = "0.11.5"
 globset = "0.4.15"
-lazy_static = "1.5.0"
 log = "0.4.22"
-serde = {version = "1.0.210", features = ["derive"]}
 serde_yaml = "0.9.34"
 thiserror = "1.0.64"
 
