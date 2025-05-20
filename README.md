@@ -125,7 +125,11 @@ Contributions are welcome! Open an issue or submit a pull request.
 
 ## 📜 License
 This project is licensed under the MIT License.
-
 ✨ Enjoy effortless scaffolding with Skeletor! 🚀
 
-Proudly brought to you by [@theGeekist](https://github.com/theGeekist)
+<p align="center">
+  <sub>
+    Proudly brought to you by 
+    <a href="https://github.com/theGeekist" target="_blank">@theGeekist</a> and <a href="https://github.com/jasonnathan" target="_blank">@jasonnathan</a>
+  </sub>
+</p>
