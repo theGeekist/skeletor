@@ -1,6 +1,6 @@
 # Skeletor
-![Build Status](https://github.com/jasonnathan/skeletor/actions/workflows/CI.yml/badge.svg)
-[![codecov](https://codecov.io/gh/jasonnathan/skeletor/branch/main/graph/badge.svg)](https://codecov.io/gh/jasonnathan/skeletor)
+![Build Status](https://github.com/theGeekist/skeletor/actions/workflows/CI.yml/badge.svg)
+[![codecov](https://codecov.io/gh/theGeekist/skeletor/branch/main/graph/badge.svg)](https://codecov.io/gh/theGeekist/skeletor)
 
 <p align="center">
   <strong>A blazing-fast Rust scaffolding tool.</strong><br>
