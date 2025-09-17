@@ -1,6 +1,6 @@
 # Skeletor
-![Build Status](https://github.com/jasonnathan/skeletor/actions/workflows/CI.yml/badge.svg)
-[![codecov](https://codecov.io/gh/jasonnathan/skeletor/branch/main/graph/badge.svg)](https://codecov.io/gh/jasonnathan/skeletor)
+![Build Status](https://github.com/theGeekist/skeletor/actions/workflows/CI.yml/badge.svg)
+[![codecov](https://codecov.io/gh/theGeekist/skeletor/branch/main/graph/badge.svg)](https://codecov.io/gh/theGeekist/skeletor)
 
 <p align="center">
   <strong>A blazing-fast Rust scaffolding tool.</strong><br>
@@ -154,5 +154,11 @@ Releases automatically run tests and clippy checks to ensure code quality.
 
 ## 📜 License
 This project is licensed under the MIT License.
-
 ✨ Enjoy effortless scaffolding with Skeletor! 🚀
+
+<p align="center">
+  <sub>
+    Proudly brought to you by 
+    <a href="https://github.com/theGeekist" target="_blank">@theGeekist</a> and <a href="https://github.com/pipewrk" target="_blank">@pipewrk</a>
+  </sub>
+</p>
