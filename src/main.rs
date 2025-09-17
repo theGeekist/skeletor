@@ -25,19 +25,18 @@ fn print_error(message: &str) {
 /// Build the CLI interface with three subcommands: `apply`, `snapshot` and `info`
 fn parse_arguments() -> clap::ArgMatches {
     Command::new("Skeletor")
-        .version("0.2.22")
+        .version("0.3.0")
         .author("Jason Joseph Nathan")
-        .about("A blazing-fast Rust scaffolding tool with snapshot capabilities.\n\nSkeletor helps you create project templates and scaffold new projects from YAML configurations.\nYou can capture existing folder structures as templates and apply them to create new projects.\n\nCommon workflow:\n  1. skeletor snapshot my-project -o template.yml  # Capture existing project\n  2. skeletor apply -i template.yml                # Apply template elsewhere")
+        .about("A blazing-fast Rust scaffolding tool with snapshot capabilities.\n\nSkeletor helps you create project templates and scaffold new projects from YAML configurations.\nYou can capture existing folder structures as templates and apply them to create new projects.\n\nCommon workflow:\n  1. skeletor snapshot my-project -o template.yml  # Capture existing project\n  2. skeletor apply template.yml                   # Apply template elsewhere")
         .subcommand_required(true)
         .subcommand(
             Command::new("apply")
-                .about("Creates files and directories based on a YAML configuration\n\nEXAMPLES:\n  skeletor apply                           # Use .skeletorrc config\n  skeletor apply -i my-template.yml        # Use custom config\n  skeletor apply --dry-run                 # Preview changes (summary)\n  skeletor apply --dry-run --verbose       # Preview changes (full listing)")
+                .about("Creates files and directories based on a YAML configuration\n\nEXAMPLES:\n  skeletor apply                           # Use .skeletorrc config\n  skeletor apply my-template.yml           # Use custom config\n  skeletor apply --dry-run                 # Preview changes (summary)\n  skeletor apply --dry-run --verbose       # Preview changes (full listing)")
                 .arg(
-                    Arg::new("input")
-                        .short('i')
-                        .long("input")
-                        .value_name("FILE")
-                        .help("YAML configuration file (defaults to .skeletorrc)"),
+                    Arg::new("config")
+                        .value_name("CONFIG_FILE")
+                        .help("YAML configuration file (defaults to .skeletorrc)")
+                        .index(1),
                 )
                 .arg(
                     Arg::new("overwrite")
@@ -63,7 +62,7 @@ fn parse_arguments() -> clap::ArgMatches {
         )
         .subcommand(
             Command::new("snapshot")
-                .about("Creates a .skeletorrc snapshot from an existing folder\n\nEXAMPLES:\n  skeletor snapshot my-project              # Print YAML to stdout\n  skeletor snapshot my-project -o config.yml # Save to file\n  skeletor snapshot src/ -I \"*.log\" -I target/ # Ignore build artifacts\n  skeletor snapshot --dry-run my-project    # Preview snapshot (summary)\n  skeletor snapshot --dry-run --verbose my-project # Preview with details")
+                .about("Creates a .skeletorrc snapshot from an existing folder\n\nEXAMPLES:\n  skeletor snapshot my-project              # Print YAML to stdout\n  skeletor snapshot my-project -o config.yml # Save to file\n  skeletor snapshot src/ -i \"*.log\" -i target/ # Ignore build artifacts\n  skeletor snapshot --dry-run my-project    # Preview snapshot (summary)\n  skeletor snapshot --dry-run --verbose my-project # Preview with details")
                 .arg(
                     Arg::new("source")
                         .value_name("FOLDER")
@@ -86,7 +85,7 @@ fn parse_arguments() -> clap::ArgMatches {
                 )
                 .arg(
                     Arg::new("ignore")
-                        .short('I')
+                        .short('i')
                         .long("ignore")
                         .value_name("PATTERN_OR_FILE")
                         .help("Exclude files from snapshot (can be used multiple times)\n  • Glob patterns: \"*.log\", \"target/*\", \"node_modules/\"\n  • Ignore files: \".gitignore\", \".dockerignore\"")
@@ -116,13 +115,12 @@ fn parse_arguments() -> clap::ArgMatches {
         )
         .subcommand(
             Command::new("info")
-                .about("Displays metadata from a .skeletorrc file\n\nEXAMPLES:\n  skeletor info                             # Show info for .skeletorrc\n  skeletor info -i my-template.yml          # Show info for custom file")
+                .about("Displays metadata from a .skeletorrc file\n\nEXAMPLES:\n  skeletor info                             # Show info for .skeletorrc\n  skeletor info my-template.yml             # Show info for custom file")
                 .arg(
-                    Arg::new("input")
-                        .short('i')
-                        .long("input")
-                        .value_name("FILE")
-                        .help("YAML configuration file to inspect (defaults to .skeletorrc)"),
+                    Arg::new("config")
+                        .value_name("CONFIG_FILE")
+                        .help("YAML configuration file to inspect (defaults to .skeletorrc)")
+                        .index(1),
                 ),
         )
         .get_matches()

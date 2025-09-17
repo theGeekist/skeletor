@@ -1,17 +1,30 @@
 # Changelog
 
-All### Changed
-- **BREAKING**: CLI output format updated for professional environments:
-  - Directory operations: `📁 Dir: path/` 
-  - File operations: `📄 File: path (size)`
-  - Messages: `error:`, `info:`, `tip:` (lowercase prefixes)
-- **Verbose Mode**: Enhanced dry-run output with detailed operation listings
-- **Error Handling**: Contextual error messages with actionable guidance to this project will be documented in this file.
+All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Changed
+- **BREAKING**: CLI argument structure redesigned for better UX:
+  - `apply` command: `CONFIG_FILE` is now a positional argument instead of `-i` flag
+    - Old: `skeletor apply -i my-template.yml`
+    - New: `skeletor apply my-template.yml`
+  - `info` command: `CONFIG_FILE` is now a positional argument instead of `-i` flag
+    - Old: `skeletor info -i my-template.yml`
+    - New: `skeletor info my-template.yml`
+  - `snapshot` command: ignore flag changed from `-I` to `-i` for consistency
+    - Old: `skeletor snapshot -I "*.log"`
+    - New: `skeletor snapshot -i "*.log"`
+- All help documentation and examples updated to reflect new CLI syntax
+
+### Fixed
+- Test suite fully updated to work with new argument structure
+- CLI flag consistency across all subcommands
+
+## [0.3.0] - 2024-12-19
 
 ### Added
 - **Library API**: Comprehensive Rust library with `SkeletorConfig` and `apply_config()` for programmatic usage

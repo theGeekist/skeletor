@@ -21,8 +21,8 @@ fn print_colored_apply_duration(duration: std::time::Duration) {
 /// Runs the apply subcommand: reads the YAML config and creates files/directories.
 /// In dry-run mode, the tasks are printed without performing any filesystem changes.
 pub fn run_apply(matches: &ArgMatches) -> Result<(), SkeletorError> {
-    // Use default_file_path so that .skeletorrc is used by default if no input is provided.
-    let input_path = default_file_path(matches.get_one::<String>("input"));
+    // Use default_file_path so that .skeletorrc is used by default if no config is provided.
+    let input_path = default_file_path(matches.get_one::<String>("config"));
     let overwrite = *matches.get_one::<bool>("overwrite").unwrap_or(&false);
     let dry_run = matches.get_flag("dry_run");
     let verbose = matches.get_flag("verbose");
@@ -129,11 +129,10 @@ mod tests {
             .subcommand(
                 Command::new("apply")
                     .arg(
-                        Arg::new("input")
-                            .short('i')
-                            .long("input")
-                            .value_name("FILE")
-                            .help("Specify the input YAML configuration file"),
+                        Arg::new("config")
+                            .value_name("CONFIG_FILE")
+                            .help("Specify the YAML configuration file")
+                            .index(1),
                     )
                     .arg(
                         Arg::new("overwrite")
@@ -164,14 +163,13 @@ mod tests {
         let args = vec![
             "skeletor",
             "apply",
-            "--input",
             "structure.yaml",
             "--overwrite",
         ];
         let matches = create_test_command().get_matches_from(args);
 
         if let Some(sub_m) = matches.subcommand_matches("apply") {
-            assert_eq!(sub_m.get_one::<String>("input").unwrap(), "structure.yaml");
+            assert_eq!(sub_m.get_one::<String>("config").unwrap(), "structure.yaml");
             assert!(*sub_m.get_one::<bool>("overwrite").unwrap());
             assert!(!(*sub_m.get_one::<bool>("dry_run").unwrap_or(&false)));
         } else {
@@ -189,7 +187,6 @@ mod tests {
         let args = vec![
             "skeletor",
             "apply",
-            "--input",
             non_existent_file.to_str().unwrap(),
         ];
         
@@ -220,7 +217,6 @@ directories:
         let args = vec![
             "skeletor",
             "apply",
-            "--input",
             config_file.to_str().unwrap(),
             "--dry-run",
         ];
@@ -247,7 +243,6 @@ directories:
         let args = vec![
             "skeletor",
             "apply",
-            "--input",
             config_file.to_str().unwrap(),
         ];
         
@@ -273,7 +268,6 @@ directories:
         let args = vec![
             "skeletor",
             "apply",
-            "--input",
             config_file.to_str().unwrap(),
         ];
         
