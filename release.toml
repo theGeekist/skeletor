@@ -14,10 +14,7 @@ sign-commit = false  # Set to true if you have GPG configured
 sign-tag = false     # Set to true if you have GPG configured
 
 # Pre-release hook for running tests and checks
-pre-release-hook = [
-    "cargo", "test", "--all-features",
-    "cargo", "clippy", "--all-targets", "--", "-D", "warnings",
-]
+pre-release-hook = ["sh", "-c", "cargo test --all-features && cargo clippy --all-targets -- -D warnings"]
 
 # Publish settings
 publish = true
