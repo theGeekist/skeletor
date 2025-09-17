@@ -36,7 +36,6 @@ pub mod apply;
 pub mod config;
 pub mod errors;
 pub mod info;
-pub mod output;
 pub mod snapshot;
 pub mod tasks;
 
@@ -46,7 +45,6 @@ pub mod test_utils;
 // Re-export key types for library users
 pub use crate::config::{SkeletorConfig, SkeletorMetadata};
 pub use crate::errors::SkeletorError;
-pub use crate::output::{OutputFormat, Reporter, DefaultReporter, SilentReporter};
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};

@@ -103,7 +103,7 @@ pub fn default_file_path(arg: Option<&String>) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
+    use crate::test_utils::helpers::*;
 
     #[test]
     fn test_default_file_path_when_input_not_provided() {
@@ -114,11 +114,8 @@ mod tests {
 
     #[test]
     fn test_read_config_invalid() {
-        let temp_dir = tempdir().unwrap();
-        let config_file = temp_dir.path().join("invalid.yaml");
-
-        let invalid_yaml_content = "invalid_yaml: data\n\tbad_indent: - missing_value";
-        fs::write(&config_file, invalid_yaml_content).unwrap();
+        let fs = TestFileSystem::new();
+        let config_file = fs.create_invalid_config("invalid.yaml");
 
         let result = read_config(&config_file);
 
@@ -135,9 +132,8 @@ mod tests {
               Header.js: "// Header component"
         "#;
 
-        let temp_dir = tempdir().unwrap();
-        let test_file = temp_dir.path().join("test.yaml");
-        fs::write(&test_file, yaml_str).unwrap();
+        let fs = TestFileSystem::new();
+        let test_file = fs.create_file("test.yaml", yaml_str);
 
         let config = read_config(&test_file).unwrap();
 

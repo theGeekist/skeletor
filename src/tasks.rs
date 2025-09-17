@@ -198,8 +198,7 @@ pub fn compute_stats(yaml: &Value) -> (usize, usize) {
 mod tests {
     use super::*;
     use serde_yaml::Value;
-    use std::fs;
-    use tempfile::tempdir;
+    use crate::test_utils::helpers::*;
 
     #[test]
     fn test_traverse_structure() {
@@ -233,8 +232,8 @@ mod tests {
 
     #[test]
     fn test_create_files_and_directories() {
-        let temp_dir = tempdir().unwrap();
-        let test_dir = temp_dir.path();
+        let fs = TestFileSystem::new();
+        let test_dir = &fs.root_path;
 
         let tasks = vec![
             Task::Dir(test_dir.join("src")),
@@ -270,15 +269,13 @@ mod tests {
 
     #[test]
     fn test_traverse_directory() {
-        let temp_dir = tempdir().unwrap();
-        let test_dir = temp_dir.path();
+        let fs = TestFileSystem::new();
+        let test_dir = &fs.root_path;
 
         // Create a simple structure with a hidden file and a regular file.
-        let src = test_dir.join("src");
-        fs::create_dir(&src).unwrap();
-        fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
+        fs.create_file("src/index.js", "console.log('Hello');");
         // Hidden file should be included.
-        fs::write(src.join(".hidden.txt"), "secret").unwrap();
+        fs.create_file("src/.hidden.txt", "secret");
 
         let (yaml_structure, binaries) = traverse_directory(test_dir, false, None, false).unwrap();
 

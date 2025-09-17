@@ -22,14 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `create_*_matches()`: Unified CLI argument parsing for all subcommands (apply, snapshot, info)
     - `assert_*()` helpers: Consistent success/failure validation patterns
     - YAML config generators: `create_test_config()`, `create_invalid_config()`, etc.
-  - **CLI Testing Standardization**: Eliminated 400+ lines of duplicated test code across modules
+  - **CLI Testing Standardization**: Eliminated 200+ lines of duplicated test code across modules
     - Fixed fundamental CLI argument parsing issues causing test failures
     - Replaced manual `Command::new()` constructions with standardized helpers
-    - Unified test patterns across `apply.rs`, `snapshot.rs`, `info.rs`, and `main.rs` test modules
+    - Unified test patterns in `apply.rs`, `snapshot.rs`, `info.rs`, and `main.rs` test modules
+    - Converted `config.rs` and `tasks.rs` from manual `tempdir()` to shared `TestFileSystem`
   - **Integration Test Enhancement**: Complete rewrite with proper CLI pipeline validation
     - Dynamic version verification using `env!("CARGO_PKG_VERSION")`
     - End-to-end testing for apply, snapshot, and info workflows
     - Comprehensive error handling and edge case coverage
+  - **Code Cleanup**: Removed unused `output.rs` module (477 lines) that wasn't being utilized
 - **Development Documentation**: Comprehensive guides for contributors
   - `DEVELOPMENT.md`: Complete development workflow and version management guide
   - CHANGELOG.md automation workflow documentation
