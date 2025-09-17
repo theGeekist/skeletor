@@ -14,7 +14,7 @@ sign-commit = false  # Set to true if you have GPG configured
 sign-tag = false     # Set to true if you have GPG configured
 
 # Pre-release hook for running tests and checks
-pre-release-hook = ["sh", "-c", "cargo test --all-features && cargo clippy --all-targets -- -D warnings"]
+pre-release-hook = ["sh", "-c", "chmod +x scripts/check-version-consistency.sh && ./scripts/check-version-consistency.sh && cargo test --all-features && cargo clippy --all-targets -- -D warnings"]
 
 # Publish settings
 publish = true
@@ -25,3 +25,12 @@ dependent-version = "upgrade"  # Update workspace deps to new version
 
 # Feature and build settings
 enable-all-features = false
+
+# Automatic CHANGELOG.md updates (cargo-release managed)
+# Manual version edits in CHANGELOG.md will cause drift issues!
+pre-release-replacements = [
+  {file="CHANGELOG.md", search="Unreleased", replace="{{version}}"},
+  {file="CHANGELOG.md", search="\\.\\.\\.HEAD", replace="...{{tag_name}}", exactly=1},
+  {file="CHANGELOG.md", search="<!-- next-header -->", replace="<!-- next-header -->\n\n## [Unreleased] - ReleaseDate", exactly=1},
+  {file="CHANGELOG.md", search="<!-- next-url -->", replace="<!-- next-url -->\n[Unreleased]: https://github.com/theGeekist/skeletor/compare/{{tag_name}}...HEAD", exactly=1},
+]

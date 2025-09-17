@@ -19,6 +19,11 @@ jobs:
         with:
           toolchain: stable
 
+      - name: Check version consistency
+        run: |
+          chmod +x scripts/check-version-consistency.sh
+          ./scripts/check-version-consistency.sh
+
       - name: Run tests with coverage
         run: |
           cargo install cargo-llvm-cov

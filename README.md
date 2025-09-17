@@ -23,7 +23,7 @@ skeletor apply
 ```
 #### Using a custom YAML config
 ```bash
-skeletor apply -i custom.yml
+skeletor apply custom.yml
 ```
 
 ### Example .skeletorrc Configuration
@@ -77,13 +77,13 @@ skeletor apply my-template.yml --dry-run --verbose
 
 ### Option 1: Install via Script (Linux/macOS)
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jasonnathan/skeletor/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/theGeekist/skeletor/main/install.sh | bash
 ```
 **tip:** Review the script before running to ensure security.  
 
 ### Option 2: Homebrew (macOS & Linux)
 ```bash
-brew tap jasonnathan/skeletor
+brew tap theGeekist/skeletor
 brew install skeletor
 ```
 Easiest method if Homebrew is installed. 
@@ -96,7 +96,7 @@ Installs directly from crates.io.
 
 ### Option 4: Build from Source 
 ```bash
-git clone https://github.com/jasonnathan/skeletor.git
+git clone https://github.com/theGeekist/skeletor.git
 cd skeletor
 cargo install --path .
 ```
@@ -160,7 +160,7 @@ Skeletor can be used as a Rust library for programmatic scaffolding in your appl
 ### Add to Cargo.toml
 ```toml
 [dependencies]
-skeletor = "0.2"
+skeletor = "0.3"
 ```
 
 ### Basic Usage
@@ -199,57 +199,41 @@ See [`examples/library_demo.rs`](examples/library_demo.rs) for a complete exampl
 ## Contributing
 Contributions are welcome! Open an issue or submit a pull request.
 
-### Development
+For comprehensive development guidelines, see [DEVELOPMENT.md](DEVELOPMENT.md).
+
+### Quick Development Setup
 ```bash
-# Clone and build
-git clone https://github.com/jasonnathan/skeletor.git
+# Clone and set up development environment
+git clone https://github.com/theGeekist/skeletor.git
 cd skeletor
-cargo build
+./scripts/setup-git-hooks.sh
 
-# Run comprehensive test suite
+# Run tests and quality checks
 cargo test
-
-# Run tests with coverage analysis
-cargo install cargo-llvm-cov  # Install coverage tool (once)
-cargo llvm-cov --html         # Generate coverage report
-
-# Code quality checks
-cargo clippy -- -D warnings           # Lint with warnings as errors
-cargo fmt --check                     # Check formatting
-cargo check                           # Fast compilation check
-
-# Test CLI commands locally
-cargo run -- apply --dry-run --verbose    # Test apply with verbose output
-cargo run -- snapshot --help              # Test command help
-cargo run -- info -i 100k.yml             # Test info command
+cargo clippy -- -D warnings
 ```
 
-**Testing Guidelines:**
-- All new features must include comprehensive unit tests
-- Maintain test coverage above 80% (current: 82.51%)
-- Use `cargo llvm-cov` to verify coverage before PR submission
-- Test both CLI and library usage patterns
-
-**Documentation Standards:**
-- Update CHANGELOG.md for all user-facing changes
-- Include examples for new CLI options
-- Professional tone with lowercase prefixes (error:, info:, tip:)
-- Preserve selective emojis for visual appeal (📁📄ℹ️✅⚠️)
+### Documentation
+- **[DEVELOPMENT.md](DEVELOPMENT.md)**: Complete development workflow and version management guide
+- **[CHANGELOG.md](CHANGELOG.md)**: Project history and release notes  
+- **Version Management**: Automated system prevents version drift - see [DEVELOPMENT.md](DEVELOPMENT.md#version-management)
+- **Testing Standards**: Shared utilities and >80% coverage target - see [DEVELOPMENT.md](DEVELOPMENT.md#testing-standards)
 
 ### Releases
 This project uses [cargo-release](https://github.com/crate-ci/cargo-release) for automated releases:
 
 ```bash
 # Dry-run (see what would happen)
-cargo release patch        # 0.2.22 → 0.2.23
-cargo release minor        # 0.2.22 → 0.3.0  
-cargo release major        # 0.2.22 → 1.0.0
+cargo release patch        # 0.3.1 → 0.3.2
+cargo release minor        # 0.3.1 → 0.4.0  
+cargo release major        # 0.3.1 → 1.0.0
 
 # Actual release (maintainers only)
 cargo release patch --execute
 ```
 
-Releases automatically run tests and clippy checks to ensure code quality.
+**⚠️ CRITICAL**: Never manually edit version numbers! Use `cargo release` only.
+See [DEVELOPMENT.md](DEVELOPMENT.md#version-management) for complete version management guidelines.
 
 ## License
 This project is licensed under the MIT License.

@@ -58,19 +58,15 @@ pub fn run_info(matches: &ArgMatches) -> Result<(), SkeletorError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use clap::{Arg, Command};
+    use crate::test_utils::helpers::*;
     use std::env;
-    use std::fs;
-    use tempfile::tempdir;
 
     #[test]
     fn test_run_info_defaults_to_local_config() {
-        // Create a temporary ".skeletorrc" with a valid YAML for test.
-        let temp_dir = tempdir().unwrap();
-        let config_path = temp_dir.path().join(".skeletorrc");
-        fs::write(
-            &config_path,
-            r#"
+        let fs = TestFileSystem::new();
+        
+        // Create .skeletorrc with metadata
+        let config_content = r#"
 created: "2020-01-01T00:00:00Z"
 updated: "2020-01-02T00:00:00Z"
 generated_comments: "Test comment"
@@ -82,26 +78,16 @@ stats:
   directories: "1"
 blacklist:
   - "*.tmp"
-"#,
-        )
-        .unwrap();
+"#;
+        let _config_path = fs.create_file(".skeletorrc", config_content);
+        
+        // Change to temp directory so the test finds .skeletorrc
         let orig_dir = env::current_dir().unwrap();
-        env::set_current_dir(&temp_dir).unwrap();
+        env::set_current_dir(&fs.root_path).unwrap();
 
-        let args = vec!["skeletor", "info"];
-        let matches = Command::new("Skeletor")
-            .subcommand(
-                Command::new("info").arg(
-                    Arg::new("config")
-                        .value_name("CONFIG_FILE")
-                        .help("Specify the YAML configuration file")
-                        .index(1),
-                ),
-            )
-            .get_matches_from(args);
-        if let Some(sub_m) = matches.subcommand_matches("info") {
-            let result = run_info(sub_m);
-            assert!(result.is_ok());
+        let args = vec![];
+        if let Some(sub_m) = create_info_matches(args) {
+            assert_command_succeeds(|| run_info(&sub_m));
         } else {
             panic!("Info subcommand not found");
         }
@@ -110,12 +96,8 @@ blacklist:
 
     #[test]
     fn test_run_info_with_input() {
-        // Create a temporary configuration file with a valid YAML for test.
-        let temp_dir = tempdir().unwrap();
-        let config_path = temp_dir.path().join("config.yaml");
-        fs::write(
-            &config_path,
-            r#"
+        let fs = TestFileSystem::new();
+        let config_path = fs.create_file("config.yaml", r#"
 created: "2020-01-01T00:00:00Z"
 updated: "2020-01-02T00:00:00Z"
 generated_comments: "Test comment"
@@ -127,24 +109,11 @@ stats:
   directories: "1"
 blacklist:
   - "*.tmp"
-"#,
-        )
-        .unwrap();
+"#);
 
-        let args = vec!["skeletor", "info", config_path.to_str().unwrap()];
-        let matches = Command::new("Skeletor")
-            .subcommand(
-                Command::new("info").arg(
-                    Arg::new("config")
-                        .value_name("CONFIG_FILE")
-                        .help("Specify the YAML configuration file")
-                        .index(1),
-                ),
-            )
-            .get_matches_from(args);
-        if let Some(sub_m) = matches.subcommand_matches("info") {
-            let result = run_info(sub_m);
-            assert!(result.is_ok());
+        let args = vec![config_path.to_str().unwrap()];
+        if let Some(sub_m) = create_info_matches(args) {
+            assert_command_succeeds(|| run_info(&sub_m));
         } else {
             panic!("Info subcommand not found");
         }
@@ -152,20 +121,9 @@ blacklist:
 
     #[test]
     fn test_run_info_with_missing_file() {
-        let args = vec!["skeletor", "info", "missing.yaml"];
-        let matches = Command::new("Skeletor")
-            .subcommand(
-                Command::new("info").arg(
-                    Arg::new("config")
-                        .value_name("CONFIG_FILE")
-                        .help("Specify the YAML configuration file")
-                        .index(1),
-                ),
-            )
-            .get_matches_from(args);
-        if let Some(sub_m) = matches.subcommand_matches("info") {
-            let result = run_info(sub_m);
-            assert!(result.is_err());
+        let args = vec!["missing.yaml"];
+        if let Some(sub_m) = create_info_matches(args) {
+            assert_command_fails(|| run_info(&sub_m));
         } else {
             panic!("Info subcommand not found");
         }
@@ -173,29 +131,12 @@ blacklist:
 
     #[test]
     fn test_run_info_with_invalid_yaml() {
-        // Create a temporary configuration file with invalid YAML for test.
-        let temp_dir = tempdir().unwrap();
-        let config_path = temp_dir.path().join("config.yaml");
-        fs::write(
-            &config_path,
-            "invalid_yaml: data\n\tbad_indent: - missing_value",
-        )
-        .unwrap();
+        let fs = TestFileSystem::new();
+        let config_path = fs.create_invalid_config("config.yaml");
 
-        let args = vec!["skeletor", "info", config_path.to_str().unwrap()];
-        let matches = Command::new("Skeletor")
-            .subcommand(
-                Command::new("info").arg(
-                    Arg::new("config")
-                        .value_name("CONFIG_FILE")
-                        .help("Specify the YAML configuration file")
-                        .index(1),
-                ),
-            )
-            .get_matches_from(args);
-        if let Some(sub_m) = matches.subcommand_matches("info") {
-            let result = run_info(sub_m);
-            assert!(result.is_err());
+        let args = vec![config_path.to_str().unwrap()];
+        if let Some(sub_m) = create_info_matches(args) {
+            assert_command_fails(|| run_info(&sub_m));
         } else {
             panic!("Info subcommand not found");
         }
@@ -203,12 +144,8 @@ blacklist:
 
     #[test]
     fn test_run_info_with_stats_and_blacklist() {
-        // Create a temporary configuration file with stats and blacklist for test.
-        let temp_dir = tempdir().unwrap();
-        let config_path = temp_dir.path().join("config.yaml");
-        fs::write(
-            &config_path,
-            r#"
+        let fs = TestFileSystem::new();
+        let config_path = fs.create_file("config.yaml", r#"
 created: "2020-01-01T00:00:00Z"
 updated: "2020-01-02T00:00:00Z"
 generated_comments: "Test comment"
@@ -220,24 +157,11 @@ stats:
   directories: "1"
 blacklist:
   - "*.tmp"
-"#,
-        )
-        .unwrap();
+"#);
 
-        let args = vec!["skeletor", "info", config_path.to_str().unwrap()];
-        let matches = Command::new("Skeletor")
-            .subcommand(
-                Command::new("info").arg(
-                    Arg::new("config")
-                        .value_name("CONFIG_FILE")
-                        .help("Specify the YAML configuration file")
-                        .index(1),
-                ),
-            )
-            .get_matches_from(args);
-        if let Some(sub_m) = matches.subcommand_matches("info") {
-            let result = run_info(sub_m);
-            assert!(result.is_ok());
+        let args = vec![config_path.to_str().unwrap()];
+        if let Some(sub_m) = create_info_matches(args) {
+            assert_command_succeeds(|| run_info(&sub_m));
         } else {
             panic!("Info subcommand not found");
         }
