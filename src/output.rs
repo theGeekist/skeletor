@@ -86,10 +86,10 @@ impl DefaultReporter {
         Self { format }
     }
     
-    fn write_colored(&self, text: &str, color: Option<Color>) {
+    fn write_colored_inline(&self, text: &str, color: Option<Color>) {
         let mut stdout = StandardStream::stdout(ColorChoice::Auto);
         if let Some(c) = color {
-            let _ = stdout.set_color(ColorSpec::new().set_fg(Some(c)));
+            let _ = stdout.set_color(ColorSpec::new().set_fg(Some(c)).set_bold(true));
         }
         let _ = write!(stdout, "{}", text);
         let _ = stdout.reset();
@@ -100,20 +100,22 @@ impl Reporter for DefaultReporter {
     fn operation_start(&self, operation: &str, details: &str) {
         match self.format {
             OutputFormat::Pretty => {
-                self.write_colored("🚀 ", Some(Color::Blue));
+                print!("🚀 ");
+                self.write_colored_inline("start: ", Some(Color::Blue));
                 println!("{}: {}", operation, details);
             },
-            _ => println!("{}: {}", operation, details),
+            _ => println!("start: {}: {}", operation, details),
         }
     }
     
     fn progress(&self, current: usize, total: usize, message: &str) {
         match self.format {
             OutputFormat::Pretty => {
-                self.write_colored("⚡ ", Some(Color::Yellow));
-                println!("Progress: {}/{} - {}", current, total, message);
+                print!("⚡ ");
+                self.write_colored_inline("progress: ", Some(Color::Yellow));
+                println!("{}/{} - {}", current, total, message);
             },
-            _ => println!("Progress: {}/{} - {}", current, total, message),
+            _ => println!("progress: {}/{} - {}", current, total, message),
         }
     }
     
@@ -122,11 +124,13 @@ impl Reporter for DefaultReporter {
             OutputFormat::Pretty => {
                 match task {
                     Task::Dir(path) => {
-                        self.write_colored("📁 ", Some(Color::Blue));
+                        print!("📁 ");
+                        self.write_colored_inline("Dir: ", Some(Color::Blue));
                         println!("{}", path.display());
                     },
                     Task::File(path, _) => {
-                        self.write_colored("📄 ", Some(Color::Green));
+                        print!("📄 ");
+                        self.write_colored_inline("File: ", Some(Color::Green));
                         println!("{}", path.display());
                     },
                 }
@@ -143,7 +147,8 @@ impl Reporter for DefaultReporter {
     fn task_warning(&self, task: &Task, error: &str) {
         match self.format {
             OutputFormat::Pretty => {
-                self.write_colored("⚠️  ", Some(Color::Yellow));
+                print!("⚠️  ");
+                self.write_colored_inline("warning: ", Some(Color::Yellow));
                 match task {
                     Task::Dir(path) => println!("{}: {}", path.display(), error),
                     Task::File(path, _) => println!("{}: {}", path.display(), error),
@@ -151,8 +156,8 @@ impl Reporter for DefaultReporter {
             },
             _ => {
                 match task {
-                    Task::Dir(path) => println!("! {}: {}", path.display(), error),
-                    Task::File(path, _) => println!("! {}: {}", path.display(), error),
+                    Task::Dir(path) => println!("warning: {}: {}", path.display(), error),
+                    Task::File(path, _) => println!("warning: {}: {}", path.display(), error),
                 }
             }
         }
@@ -161,16 +166,19 @@ impl Reporter for DefaultReporter {
     fn dry_run_preview(&self, tasks: &[Task]) {
         match self.format {
             OutputFormat::Pretty => {
-                self.write_colored("🔍 ", Some(Color::Cyan));
+                print!("ℹ️  ");
+                self.write_colored_inline("info: ", Some(Color::Cyan));
                 println!("Dry run preview ({} tasks):", tasks.len());
                 for task in tasks {
                     match task {
                         Task::Dir(path) => {
-                            self.write_colored("  📁 ", Some(Color::Blue));
+                            print!("  📁 ");
+                            self.write_colored_inline("Dir: ", Some(Color::Blue));
                             println!("{}", path.display());
                         },
                         Task::File(path, _) => {
-                            self.write_colored("  📄 ", Some(Color::Green));
+                            print!("  📄 ");
+                            self.write_colored_inline("File: ", Some(Color::Green));
                             println!("{}", path.display());
                         },
                     }
@@ -191,16 +199,21 @@ impl Reporter for DefaultReporter {
     fn apply_complete(&self, result: &SimpleApplyResult) {
         match self.format {
             OutputFormat::Pretty => {
-                self.write_colored("✅ ", Some(Color::Green));
-                println!("Success!");
-                self.write_colored("   📁 ", Some(Color::Blue));
-                println!("Directories created: {}", result.dirs_created);
-                self.write_colored("   📄 ", Some(Color::Green));
-                println!("Files created: {}", result.files_created);
-                self.write_colored("   ⚡ ", Some(Color::Yellow));
-                println!("Duration: {:.2}ms", result.duration.as_micros() as f64 / 1000.0);
-                self.write_colored("   🎯 ", Some(Color::Magenta));
-                println!("Total operations: {}", result.tasks_total);
+                print!("✅ ");
+                self.write_colored_inline("success: ", Some(Color::Green));
+                println!("Apply complete!");
+                print!("   📁 ");
+                self.write_colored_inline("dirs: ", Some(Color::Blue));
+                println!("{}", result.dirs_created);
+                print!("   📄 ");
+                self.write_colored_inline("files: ", Some(Color::Green));
+                println!("{}", result.files_created);
+                print!("   ⏱️  ");
+                self.write_colored_inline("duration: ", Some(Color::Cyan));
+                println!("{:.2}ms", result.duration.as_micros() as f64 / 1000.0);
+                print!("   ℹ️  ");
+                self.write_colored_inline("total operations: ", Some(Color::Magenta));
+                println!("{}", result.tasks_total);
             },
             _ => {
                 println!("Success!");
@@ -215,15 +228,20 @@ impl Reporter for DefaultReporter {
     fn snapshot_complete(&self, result: &SimpleSnapshotResult) {
         match self.format {
             OutputFormat::Pretty => {
-                self.write_colored("📸 ", Some(Color::Green));
-                println!("Snapshot complete!");
-                self.write_colored("   📄 ", Some(Color::Green));
-                println!("Files processed: {}", result.files_processed);
-                self.write_colored("   📁 ", Some(Color::Blue));
-                println!("Directories processed: {}", result.dirs_processed);
-                self.write_colored("   ⚡ ", Some(Color::Yellow));
-                println!("Duration: {:.2}ms", result.duration.as_micros() as f64 / 1000.0);
-                self.write_colored("   💾 ", Some(Color::Cyan));
+                print!("📸 ");
+                self.write_colored_inline("snapshot: ", Some(Color::Green));
+                println!("Complete!");
+                print!("   📄 ");
+                self.write_colored_inline("files: ", Some(Color::Green));
+                println!("{}", result.files_processed);
+                print!("   📁 ");
+                self.write_colored_inline("dirs: ", Some(Color::Blue));
+                println!("{}", result.dirs_processed);
+                print!("   ⏱️  ");
+                self.write_colored_inline("duration: ", Some(Color::Cyan));
+                println!("{:.2}ms", result.duration.as_micros() as f64 / 1000.0);
+                print!("   💾 ");
+                self.write_colored_inline("output: ", Some(Color::Cyan));
                 println!("Output: {}", result.output_path.display());
             },
             _ => {
@@ -253,5 +271,180 @@ impl Reporter for SilentReporter {
 impl Default for DefaultReporter {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use std::time::Duration;
+
+    #[test]
+    fn test_simple_apply_result_creation() {
+        let apply_result = crate::ApplyResult {
+            files_created: 5,
+            dirs_created: 3,
+            duration: Duration::from_millis(100),
+            tasks_total: 8,
+        };
+        
+        let simple_result = SimpleApplyResult::from_apply_result(&apply_result);
+        assert_eq!(simple_result.files_created, 5);
+        assert_eq!(simple_result.dirs_created, 3);
+        assert_eq!(simple_result.duration, Duration::from_millis(100));
+        assert_eq!(simple_result.tasks_total, 8);
+    }
+
+    #[test]
+    fn test_default_reporter_creation() {
+        let reporter = DefaultReporter::new();
+        match reporter.format {
+            OutputFormat::Pretty => {},
+            _ => panic!("Expected Pretty format"),
+        }
+    }
+
+    #[test]
+    fn test_reporter_with_format() {
+        let reporter = DefaultReporter::with_format(OutputFormat::Plain);
+        match reporter.format {
+            OutputFormat::Plain => {},
+            _ => panic!("Expected Plain format"),
+        }
+    }
+
+    #[test]
+    fn test_silent_reporter_methods() {
+        let reporter = SilentReporter;
+        let task = Task::Dir("test".into());
+        
+        // These should not panic and should do nothing
+        reporter.operation_start("test", "details");
+        reporter.progress(1, 10, "message");
+        reporter.task_success(&task);
+        reporter.task_warning(&task, "warning");
+        reporter.dry_run_preview(&[task]);
+        
+        let apply_result = SimpleApplyResult {
+            files_created: 1,
+            dirs_created: 1,
+            duration: Duration::from_millis(50),
+            tasks_total: 2,
+        };
+        reporter.apply_complete(&apply_result);
+        
+        let snapshot_result = SimpleSnapshotResult {
+            files_processed: 2,
+            dirs_processed: 1,
+            duration: Duration::from_millis(75),
+            output_path: PathBuf::from("test.yml"),
+            binary_files_excluded: 0,
+        };
+        reporter.snapshot_complete(&snapshot_result);
+    }
+
+    #[test]
+    fn test_default_reporter_methods() {
+        let reporter = DefaultReporter::new();
+        let task = Task::File("test.txt".into(), "content".to_string());
+        
+        // Test that these don't panic (output verification would need capturing stdout)
+        reporter.operation_start("test operation", "details");
+        reporter.progress(1, 10, "progress message");
+        reporter.task_success(&task);
+        reporter.task_warning(&task, "warning message");
+        reporter.dry_run_preview(&[task]);
+        
+        let apply_result = SimpleApplyResult {
+            files_created: 3,
+            dirs_created: 2,
+            duration: Duration::from_millis(150),
+            tasks_total: 5,
+        };
+        reporter.apply_complete(&apply_result);
+        
+        let snapshot_result = SimpleSnapshotResult {
+            files_processed: 4,
+            dirs_processed: 2,
+            duration: Duration::from_millis(200),
+            output_path: PathBuf::from("snapshot.yml"),
+            binary_files_excluded: 1,
+        };
+        reporter.snapshot_complete(&snapshot_result);
+    }
+
+    #[test]
+    fn test_plain_format_reporter() {
+        let reporter = DefaultReporter::with_format(OutputFormat::Plain);
+        let apply_result = SimpleApplyResult {
+            files_created: 2,
+            dirs_created: 1,
+            duration: Duration::from_millis(75),
+            tasks_total: 3,
+        };
+        
+        // Test that plain format doesn't panic
+        reporter.apply_complete(&apply_result);
+        
+        let snapshot_result = SimpleSnapshotResult {
+            files_processed: 5,
+            dirs_processed: 3,
+            duration: Duration::from_millis(125),
+            output_path: PathBuf::from("plain.yml"),
+            binary_files_excluded: 2,
+        };
+        reporter.snapshot_complete(&snapshot_result);
+    }
+
+    #[test]
+    fn test_output_format_debug() {
+        let format = OutputFormat::Pretty;
+        let debug_str = format!("{:?}", format);
+        assert!(debug_str.contains("Pretty"));
+    }
+
+    #[test]
+    fn test_simple_results_debug() {
+        let apply_result = SimpleApplyResult {
+            files_created: 1,
+            dirs_created: 1,
+            duration: Duration::from_millis(50),
+            tasks_total: 2,
+        };
+        let debug_str = format!("{:?}", apply_result);
+        assert!(debug_str.contains("files_created"));
+        
+        let snapshot_result = SimpleSnapshotResult {
+            files_processed: 2,
+            dirs_processed: 1,
+            duration: Duration::from_millis(75),
+            output_path: PathBuf::from("test.yml"),
+            binary_files_excluded: 0,
+        };
+        let debug_str = format!("{:?}", snapshot_result);
+        assert!(debug_str.contains("files_processed"));
+    }
+
+    #[test]
+    fn test_clone_functionality() {
+        let apply_result = SimpleApplyResult {
+            files_created: 1,
+            dirs_created: 1,
+            duration: Duration::from_millis(50),
+            tasks_total: 2,
+        };
+        let cloned = apply_result.clone();
+        assert_eq!(cloned.files_created, apply_result.files_created);
+        
+        let snapshot_result = SimpleSnapshotResult {
+            files_processed: 2,
+            dirs_processed: 1,
+            duration: Duration::from_millis(75),
+            output_path: PathBuf::from("test.yml"),
+            binary_files_excluded: 0,
+        };
+        let cloned = snapshot_result.clone();
+        assert_eq!(cloned.files_processed, snapshot_result.files_processed);
     }
 }

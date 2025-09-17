@@ -10,17 +10,28 @@ use crate::errors::SkeletorError;
 use crate::info::run_info;
 use crate::snapshot::run_snapshot;
 use clap::{Arg, ArgAction, Command};
+use termcolor::{StandardStream, ColorChoice, Color, ColorSpec, WriteColor};
+use std::io::Write;
+
+/// Print a colored error message
+fn print_error(message: &str) {
+    let mut stderr = StandardStream::stderr(ColorChoice::Auto);
+    let _ = stderr.set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true));
+    let _ = write!(stderr, "error: ");
+    let _ = stderr.reset();
+    eprintln!("{}", message);
+}
 
 /// Build the CLI interface with three subcommands: `apply`, `snapshot` and `info`
 fn parse_arguments() -> clap::ArgMatches {
     Command::new("Skeletor")
         .version("0.2.22")
         .author("Jason Joseph Nathan")
-        .about("A blazing-fast Rust scaffolding tool with snapshot capabilities.")
+        .about("A blazing-fast Rust scaffolding tool with snapshot capabilities.\n\nSkeletor helps you create project templates and scaffold new projects from YAML configurations.\nYou can capture existing folder structures as templates and apply them to create new projects.\n\nCommon workflow:\n  1. skeletor snapshot my-project -o template.yml  # Capture existing project\n  2. skeletor apply -i template.yml                # Apply template elsewhere")
         .subcommand_required(true)
         .subcommand(
             Command::new("apply")
-                .about("Creates files and directories based on a YAML configuration")
+                .about("Creates files and directories based on a YAML configuration\n\nEXAMPLES:\n  skeletor apply                           # Use .skeletorrc config\n  skeletor apply -i my-template.yml        # Use custom config\n  skeletor apply --dry-run                 # Preview changes (summary)\n  skeletor apply --dry-run --verbose       # Preview changes (full listing)")
                 .arg(
                     Arg::new("input")
                         .short('i')
@@ -39,13 +50,20 @@ fn parse_arguments() -> clap::ArgMatches {
                     Arg::new("dry_run")
                         .short('d')
                         .long("dry-run")
-                        .help("Simulate execution without modifying files")
+                        .help("Preview changes without creating files - shows clean summary by default")
+                        .action(ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("verbose")
+                        .short('v')
+                        .long("verbose")
+                        .help("Show full detailed operation listing during dry-run (useful for debugging)")
                         .action(ArgAction::SetTrue),
                 ),
         )
         .subcommand(
             Command::new("snapshot")
-                .about("Creates a .skeletorrc snapshot from an existing folder")
+                .about("Creates a .skeletorrc snapshot from an existing folder\n\nEXAMPLES:\n  skeletor snapshot my-project              # Print YAML to stdout\n  skeletor snapshot my-project -o config.yml # Save to file\n  skeletor snapshot src/ -I \"*.log\" -I target/ # Ignore build artifacts\n  skeletor snapshot --dry-run my-project    # Preview snapshot (summary)\n  skeletor snapshot --dry-run --verbose my-project # Preview with details")
                 .arg(
                     Arg::new("source")
                         .value_name("FOLDER")
@@ -71,14 +89,21 @@ fn parse_arguments() -> clap::ArgMatches {
                         .short('I')
                         .long("ignore")
                         .value_name("PATTERN_OR_FILE")
-                        .help("Exclude files using glob patterns or a .gitignore-style file (multiple allowed)")
+                        .help("Exclude files from snapshot (can be used multiple times)\n  • Glob patterns: \"*.log\", \"target/*\", \"node_modules/\"\n  • Ignore files: \".gitignore\", \".dockerignore\"")
                         .action(ArgAction::Append),
+                )
+                .arg(
+                    Arg::new("verbose")
+                        .short('v')
+                        .long("verbose")
+                        .help("Show detailed ignore pattern matching and file processing info")
+                        .action(ArgAction::SetTrue),
                 )
                 .arg(
                     Arg::new("dry_run")
                         .short('d')
                         .long("dry-run")
-                        .help("Simulate execution without modifying files")
+                        .help("Preview snapshot without creating files - shows clean summary by default")
                         .action(ArgAction::SetTrue),
                 )
                 .arg(
@@ -91,7 +116,7 @@ fn parse_arguments() -> clap::ArgMatches {
         )
         .subcommand(
             Command::new("info")
-                .about("Displays metadata from a .skeletorrc file")
+                .about("Displays metadata from a .skeletorrc file\n\nEXAMPLES:\n  skeletor info                             # Show info for .skeletorrc\n  skeletor info -i my-template.yml          # Show info for custom file")
                 .arg(
                     Arg::new("input")
                         .short('i')
@@ -103,18 +128,26 @@ fn parse_arguments() -> clap::ArgMatches {
         .get_matches()
 }
 
-fn main() -> Result<(), SkeletorError> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
     let matches = parse_arguments();
 
+    if let Err(e) = run_command(&matches) {
+        print_error(&e.to_string());
+        std::process::exit(1);
+    }
+
+    Ok(())
+}
+
+fn run_command(matches: &clap::ArgMatches) -> Result<(), SkeletorError> {
     match matches.subcommand() {
         Some(("apply", sub_m)) => run_apply(sub_m)?,
         Some(("snapshot", sub_m)) => run_snapshot(sub_m)?,
         Some(("info", sub_m)) => run_info(sub_m)?,
         _ => unreachable!("A subcommand is required"),
     }
-
     Ok(())
 }
 

@@ -9,8 +9,10 @@ pub fn run_info(matches: &ArgMatches) -> Result<(), SkeletorError> {
     // Use default_file_path so that .skeletorrc is used by default.
     let input_path = default_file_path(matches.get_one::<String>("input"));
 
-    let content = fs::read_to_string(&input_path)?;
-    let yaml_docs: Value = serde_yaml::from_str(&content)?; // Use `?` instead of expect
+    let content = fs::read_to_string(&input_path)
+        .map_err(|e| SkeletorError::from_io_with_context(e, input_path.clone()))?;
+    let yaml_docs: Value = serde_yaml::from_str(&content)
+        .map_err(|e| SkeletorError::invalid_yaml(e.to_string()))?;
 
     println!("Information from {:?}:", input_path);
 

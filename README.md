@@ -6,15 +6,15 @@
   <strong>A blazing-fast Rust scaffolding tool.</strong><br>
     Generate thousands of files and directories with file contents from a <code>YAML</code> configuration in milliseconds.
 <br>
-  <small>📸 Capture existing nested folders as YAML templates with snapshot mode.</small>
+  <small>Capture existing nested folders as YAML templates with snapshot mode.</small>
 </p>
 
 
-## 🚀 Usage
+## Usage
 Skeletor simplifies **project scaffolding** with an easy-to-use YAML configuration.
 
 
-### 🛠 Generate Files and Directories
+### Generate Files and Directories
 
 #### With a `.skeletorrc` file
 ```bash
@@ -25,7 +25,7 @@ skeletor apply
 skeletor apply -i custom.yml
 ```
 
-### 📁 Example .skeletorrc Configuration
+### Example .skeletorrc Configuration
 Create a YAML file (`.skeletorrc`) to define the directory structure:
 
 ```yaml
@@ -52,33 +52,37 @@ directories:
 ```bash
 skeletor apply
 ```
-📁 This will **generate the entire folder structure** instantly!
+This will **generate the entire folder structure** instantly!
 
 **Preview Before Running**
 ```bash
+# Quick summary of what would be created
 skeletor apply --dry-run
+
+# Detailed listing of all operations (useful for debugging)
+skeletor apply --dry-run --verbose
 ```
 
-## 🛠️ Installation
+## Installation
 
 ### Option 1: Install via Script (Linux/macOS)
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jasonnathan/skeletor/main/install.sh | bash
 ```
-⚠️ **Tip:** Review the script before running to ensure security.  
+**tip:** Review the script before running to ensure security.  
 
 ### Option 2: Homebrew (macOS & Linux)
 ```bash
 brew tap jasonnathan/skeletor
 brew install skeletor
 ```
-💡 Easiest method if Homebrew is installed. 
+Easiest method if Homebrew is installed. 
 
 ### Option 3: Cargo (Recommended for Rust Users)
 ```bash
 cargo install skeletor
 ```
-🔹 Installs directly from crates.io.
+Installs directly from crates.io.
 
 ### Option 4: Build from Source 
 ```bash
@@ -86,41 +90,61 @@ git clone https://github.com/jasonnathan/skeletor.git
 cd skeletor
 cargo install --path .
 ```
-🛠️ Rust & Cargo need to be installed on your system.  
+Rust & Cargo need to be installed on your system.  
 
-## 🔥 Features
-- ✅ Generate Nested Files & Directories Instantly
-- ✅ Dry-Run Mode – Preview before applying
-- ✅ Snapshot Mode – Convert an existing folder into YAML
-- ✅ Ignore Patterns & Binary File Detection
-- ✅ Metadata & Stats Included
+## Key Features
+- Generate Nested Files & Directories Instantly
+- Dry-Run Mode – Preview before applying
+- Snapshot Mode – Convert an existing folder into YAML
+- Ignore Patterns & Binary File Detection
+- Metadata & Stats Included
 
-## 📸 Snapshot Mode
+## Snapshot Mode
 Capture a YAML snapshot of an existing folder.
 
 **Create a Snapshot**
 ```bash
+# Print YAML to stdout
 skeletor snapshot .
+
+# Save to file
+skeletor snapshot . -o my-template.yml
 ```
+
 **Ignore files and add a note**
 ```bash
-skeletor snapshot -n "Removed .git folder"  -I .gitignore -I .git/ .
+skeletor snapshot -n "Initial snapshot" -I .gitignore -I .git/ .
 ```
 
+**Preview Before Creating**
+```bash
+# Quick summary of what would be captured
+skeletor snapshot --dry-run .
 
-**Options**
-- `-o custom.yml`  → Path to custom yaml file (defaults to `.skeletorrc`)
-- `-I "*.log"` → Exclude files based on patterns (a path works too).  
-- `-n "Initial snapshot"` → Add custom notes.
+# Detailed listing with ignore pattern matching
+skeletor snapshot --dry-run --verbose .
+```
 
-## 📊 Info Mode
+**Common Options**
+- `-o custom.yml` → Save snapshot to file (prints to stdout if omitted)
+- `-I "*.log"` → Exclude files based on patterns (can be used multiple times)
+- `-I .gitignore` → Use .gitignore file patterns for exclusion
+- `-n "Initial snapshot"` → Add custom notes to the snapshot
+- `--include-contents` → Include file contents for text files (binary files will be empty)
+- `--verbose` → Show detailed ignore pattern matching and file processing info
+
+## Info Mode
 Display metadata from a `.skeletorrc` file.
 
 ```bash
+# Show info for .skeletorrc
 skeletor info
+
+# Show info for custom file
+skeletor info -i my-template.yml
 ```
 
-## 📚 Library Usage
+## Library Usage
 Skeletor can be used as a Rust library for programmatic scaffolding in your applications.
 
 ### Add to Cargo.toml
@@ -162,7 +186,7 @@ println!("Created {} files and {} directories in {:?}",
 
 See [`examples/library_demo.rs`](examples/library_demo.rs) for a complete example.
 
-## 🤝 Contributing
+## Contributing
 Contributions are welcome! Open an issue or submit a pull request.
 
 ### Development
@@ -172,12 +196,35 @@ git clone https://github.com/jasonnathan/skeletor.git
 cd skeletor
 cargo build
 
-# Run tests
+# Run comprehensive test suite
 cargo test
 
-# Check code quality
-cargo clippy -- -D warnings
+# Run tests with coverage analysis
+cargo install cargo-llvm-cov  # Install coverage tool (once)
+cargo llvm-cov --html         # Generate coverage report
+
+# Code quality checks
+cargo clippy -- -D warnings           # Lint with warnings as errors
+cargo fmt --check                     # Check formatting
+cargo check                           # Fast compilation check
+
+# Test CLI commands locally
+cargo run -- apply --dry-run --verbose    # Test apply with verbose output
+cargo run -- snapshot --help              # Test command help
+cargo run -- info -i 100k.yml             # Test info command
 ```
+
+**Testing Guidelines:**
+- All new features must include comprehensive unit tests
+- Maintain test coverage above 80% (current: 82.51%)
+- Use `cargo llvm-cov` to verify coverage before PR submission
+- Test both CLI and library usage patterns
+
+**Documentation Standards:**
+- Update CHANGELOG.md for all user-facing changes
+- Include examples for new CLI options
+- Professional tone with lowercase prefixes (error:, info:, tip:)
+- Preserve selective emojis for visual appeal (📁📄ℹ️✅⚠️)
 
 ### Releases
 This project uses [cargo-release](https://github.com/crate-ci/cargo-release) for automated releases:
@@ -194,9 +241,9 @@ cargo release patch --execute
 
 Releases automatically run tests and clippy checks to ensure code quality.
 
-## 📜 License
+## License
 This project is licensed under the MIT License.
-✨ Enjoy effortless scaffolding with Skeletor! 🚀
+Enjoy effortless scaffolding with Skeletor!
 
 <p align="center">
   <sub>
