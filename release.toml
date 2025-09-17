@@ -13,12 +13,6 @@ push-remote = "origin"
 sign-commit = false  # Set to true if you have GPG configured
 sign-tag = false     # Set to true if you have GPG configured
 
-# Pre-release replacements to keep version in sync
-pre-release-replacements = [
-    # Update hardcoded version in main.rs
-    {file="src/main.rs", search='\\.version\\(".*?"\\)', replace='.version("{{version}}")'},
-]
-
 # Pre-release hook for running tests and checks
 pre-release-hook = [
     "cargo", "test", "--all-features",
