@@ -1,0 +1,36 @@
+# Cargo-release configuration for Skeletor
+# Run with: cargo release [patch|minor|major] --execute
+
+# Basic release settings
+allow-branch = ["main"]
+consolidate-commits = true
+tag-message = "🚀 Release {{tag_name}}"
+pre-release-commit-message = "chore: Release {{version}}"
+push = true
+push-remote = "origin"
+
+# Sign commits and tags (recommended for security)
+sign-commit = false  # Set to true if you have GPG configured
+sign-tag = false     # Set to true if you have GPG configured
+
+# Pre-release replacements to keep version in sync
+pre-release-replacements = [
+    # Update hardcoded version in main.rs
+    {file="src/main.rs", search='\\.version\\(".*?"\\)', replace='.version("{{version}}")'},
+]
+
+# Pre-release hook for running tests and checks
+pre-release-hook = [
+    "cargo", "test", "--all-features",
+    "cargo", "clippy", "--all-targets", "--", "-D", "warnings",
+]
+
+# Publish settings
+publish = true
+verify = true  # Always verify build before publishing
+
+# Dependencies
+dependent-version = "upgrade"  # Update workspace deps to new version
+
+# Feature and build settings
+enable-all-features = false
