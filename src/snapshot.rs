@@ -229,11 +229,11 @@ mod tests {
         // Hidden file should be included.
         fs::write(src.join(".hidden.txt"), "secret").unwrap();
 
-        let (yaml_structure, binaries) = traverse_directory(&test_dir, false, None).unwrap();
+        let (yaml_structure, binaries) = traverse_directory(test_dir, false, None).unwrap();
 
         if let Value::Mapping(map) = yaml_structure {
             // Expect "src" key exists.
-            assert!(map.contains_key(&Value::String("src".to_string())));
+            assert!(map.contains_key(Value::String("src".to_string())));
         } else {
             panic!("Expected a YAML hash");
         }
@@ -253,11 +253,11 @@ mod tests {
         // Hidden file should be included.
         fs::write(src.join(".hidden.txt"), "secret").unwrap();
 
-        let (yaml_structure, binaries) = traverse_directory(&test_dir, true, None).unwrap();
+        let (yaml_structure, binaries) = traverse_directory(test_dir, true, None).unwrap();
 
         if let Value::Mapping(map) = yaml_structure {
             // Expect "src" key exists.
-            assert!(map.contains_key(&Value::String("src".to_string())));
+            assert!(map.contains_key(Value::String("src".to_string())));
         } else {
             panic!("Expected a YAML hash");
         }
@@ -295,11 +295,11 @@ mod tests {
         // Hidden file should be included.
         fs::write(src.join(".hidden.txt"), "secret").unwrap();
 
-        let (yaml_structure, binaries) = traverse_directory(&test_dir, false, None).unwrap();
+        let (yaml_structure, binaries) = traverse_directory(test_dir, false, None).unwrap();
 
         if let Value::Mapping(map) = yaml_structure {
             // Expect "src" key exists.
-            assert!(map.contains_key(&Value::String("src".to_string())));
+            assert!(map.contains_key(Value::String("src".to_string())));
         } else {
             panic!("Expected a YAML hash");
         }
@@ -388,7 +388,7 @@ mod tests {
         let src = test_dir.join("src");
         fs::create_dir(&src).unwrap();
         fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
-        fs::write(src.join("binary.bin"), &[0, 159, 146, 150]).unwrap();
+        fs::write(src.join("binary.bin"), [0, 159, 146, 150]).unwrap();
 
         let args = vec![test_dir.to_str().unwrap()];
         if let Some(sub_m) = get_test_matches("snapshot", &args) {

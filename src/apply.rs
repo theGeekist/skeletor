@@ -92,8 +92,8 @@ mod tests {
 
         if let Some(sub_m) = matches.subcommand_matches("apply") {
             assert_eq!(sub_m.get_one::<String>("input").unwrap(), "structure.yaml");
-            assert_eq!(*sub_m.get_one::<bool>("overwrite").unwrap(), true);
-            assert_eq!(*sub_m.get_one::<bool>("dry_run").unwrap_or(&false), false);
+            assert!(*sub_m.get_one::<bool>("overwrite").unwrap());
+            assert!(!(*sub_m.get_one::<bool>("dry_run").unwrap_or(&false)));
         } else {
             panic!("Apply subcommand not found");
         }
