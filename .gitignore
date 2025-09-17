@@ -3,6 +3,7 @@
 debug/
 target/
 .skeletorrc
+.github/instructions
 ignore_patterns.txt
 temp_skeletor_test
 src/ignore.txt
