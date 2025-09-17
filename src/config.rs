@@ -67,7 +67,7 @@ mod tests {
         let config = read_config(&test_file).unwrap();
 
         if let Value::Mapping(map) = config {
-            assert!(map.contains_key(&Value::String("src".to_string())));
+            assert!(map.contains_key(Value::String("src".to_string())));
         } else {
             panic!("Expected a YAML mapping");
         }

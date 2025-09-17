@@ -140,21 +140,19 @@ pub fn traverse_directory(
             let (sub_yaml, mut sub_binaries) = traverse_directory(&path, include_contents, ignore)?;
             mapping.insert(Value::String(file_name_string), sub_yaml);
             binaries.append(&mut sub_binaries);
-        } else if path.is_file() {
-            if include_contents {
-                match fs::read(&path) {
-                    Ok(bytes) => {
-                        if let Ok(text) = String::from_utf8(bytes.clone()) {
-                            // println!("Storing file: {:?}", path);
-                            mapping.insert(Value::String(file_name_string), Value::String(text));
-                        } else {
-                            // println!("Binary file detected: {:?}", path);
-                            binaries.push(new_relative.to_string_lossy().into_owned());
-                        }
+        } else if path.is_file() && include_contents {
+            match fs::read(&path) {
+                Ok(bytes) => {
+                    if let Ok(text) = String::from_utf8(bytes.clone()) {
+                        // println!("Storing file: {:?}", path);
+                        mapping.insert(Value::String(file_name_string), Value::String(text));
+                    } else {
+                        // println!("Binary file detected: {:?}", path);
+                        binaries.push(new_relative.to_string_lossy().into_owned());
                     }
-                    Err(e) => {
-                        eprintln!("Error reading file {:?}: {}", path, e);
-                    }
+                }
+                Err(e) => {
+                    eprintln!("Error reading file {:?}: {}", path, e);
                 }
             }
         }
@@ -274,11 +272,11 @@ mod tests {
         // Hidden file should be included.
         fs::write(src.join(".hidden.txt"), "secret").unwrap();
 
-        let (yaml_structure, binaries) = traverse_directory(&test_dir, false, None).unwrap();
+        let (yaml_structure, binaries) = traverse_directory(test_dir, false, None).unwrap();
 
         if let Value::Mapping(map) = yaml_structure {
             // Expect "src" key exists.
-            assert!(map.contains_key(&Value::String("src".into())));
+            assert!(map.contains_key(Value::String("src".into())));
         } else {
             panic!("Expected a YAML hash");
         }
