@@ -44,7 +44,6 @@ directories:
 - **Versioning scheme**: Follows 0.x.y pre-1.0 semver convention for Rust CLIs
 - **Modern tooling**: Uses `cargo-release` for automated releases (see `release.toml`)
 - **Commands**: `cargo release patch|minor|major --execute` (dry-run by default)
-- **Legacy script**: `release.sh` exists but `cargo-release` is preferred
 - **`install.sh`**: Installation script for end users
 
 ## Project-Specific Patterns

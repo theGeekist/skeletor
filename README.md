@@ -123,6 +123,35 @@ skeletor info
 ## 🤝 Contributing
 Contributions are welcome! Open an issue or submit a pull request.
 
+### Development
+```bash
+# Clone and build
+git clone https://github.com/jasonnathan/skeletor.git
+cd skeletor
+cargo build
+
+# Run tests
+cargo test
+
+# Check code quality
+cargo clippy -- -D warnings
+```
+
+### Releases
+This project uses [cargo-release](https://github.com/crate-ci/cargo-release) for automated releases:
+
+```bash
+# Dry-run (see what would happen)
+cargo release patch        # 0.2.22 → 0.2.23
+cargo release minor        # 0.2.22 → 0.3.0  
+cargo release major        # 0.2.22 → 1.0.0
+
+# Actual release (maintainers only)
+cargo release patch --execute
+```
+
+Releases automatically run tests and clippy checks to ensure code quality.
+
 ## 📜 License
 This project is licensed under the MIT License.
 
