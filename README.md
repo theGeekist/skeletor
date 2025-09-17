@@ -1,4 +1,5 @@
 # Skeletor
+[![Crates.io](https://img.shields.io/crates/v/skeletor.svg)](https://crates.io/crates/skeletor)
 ![Build Status](https://github.com/theGeekist/skeletor/actions/workflows/CI.yml/badge.svg)
 [![codecov](https://codecov.io/gh/theGeekist/skeletor/branch/main/graph/badge.svg)](https://codecov.io/gh/theGeekist/skeletor)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=theGeekist_skeletor&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=theGeekist_skeletor)
