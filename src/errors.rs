@@ -40,7 +40,7 @@ impl SkeletorError {
                 // If it doesn't end with an extension and doesn't exist, likely a directory
                 let path_str = path.to_string_lossy();
                 if path_str.ends_with('/') || 
-                   (!path_str.contains('.') && !path.extension().is_some()) ||
+                   (!path_str.contains('.') && path.extension().is_none()) ||
                    path.is_dir() {
                     Self::DirectoryNotFound { path }
                 } else {
