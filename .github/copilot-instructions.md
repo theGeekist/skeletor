@@ -1,21 +1,64 @@
 # Skeletor Codebase Instructions
 
+## Development Cadences
+
+### Release Strategy
+- **Automated Releases**: Use `cargo release` for all version updates
+- **Version Drift Protection**: Always run `./scripts/check-version-consistency.sh` before commits
+- **CHANGELOG Automation**: cargo-release manages CHANGELOG.md via `pre-release-replacements`
+- **Release Readiness**: CI validates version consistency, tests, and clippy warnings
+
+### Test Strategy  
+- **Test Coverage**: Maintain >80% coverage with `cargo llvm-cov`
+- **Shared Utilities**: Use `src/test_utils.rs` for consistent CLI testing patterns
+- **Integration Focus**: End-to-end CLI validation in `tests/integration_test.rs`
+- **Module Testing**: Unit tests co-located with implementation using standardized helpers
+
+### Documentation Maintenance
+- **Always Update**: `README.md`, `DEVELOPMENT.md`, `CHANGELOG.md` with each significant change
+- **Remove Warnings**: Zero clippy warnings, clear error messages, up-to-date examples
+- **Version Sync**: All examples and documentation automatically track `Cargo.toml` version
+
+### Cognitive Load Management
+- **Low Complexity**: Shared test utilities eliminate duplication
+- **Clear Patterns**: Standardized CLI argument parsing via `create_*_matches()` 
+- **Automated Workflows**: Version management, testing, and releases require minimal manual intervention
+- **Self-Documenting**: Code patterns and utilities reduce onboarding complexity
+
+### Community Standards
+- **Professional CLI**: Lowercase prefixes (`error:`, `info:`, `tip:`), consistent emoji usage
+- **Contributor Friendly**: `DEVELOPMENT.md` provides complete setup and workflow guidance
+- **Quality Assurance**: Pre-commit hooks, CI integration, comprehensive test coverage
+- **Release Transparency**: Detailed CHANGELOG.md with automation markers for cargo-release
+
 ## Architecture Overview
 
-**Skeletor** is a Rust CLI tool for project scaffolding with three core subcommands: `apply`, `snapshot`, and `info`. The codebase follows a modular design with each major feature in its own module.
+**Skeletor** is a Rust CLI tool for project scaffolding with three core subcommands: `apply`, `snapshot`, and `info`. The codebase follows a modular design with shared utilities and automated version management.
 
 ### Core Components
 
-- **`main.rs`**: CLI argument parsing using `clap` with subcommands. Version is hardcoded and should match `Cargo.toml`
-- **`config.rs`**: YAML configuration handling. Default config file is `.skeletorrc` with required `directories` key
-- **`tasks.rs`**: Core logic for file/directory creation. Uses `Task` enum (Dir/File) and breadth-first traversal
-- **`apply.rs`**: Executes scaffolding from YAML config. Supports `--dry-run` and `--overwrite` flags
-- **`snapshot.rs`**: Reverse operation - captures existing folder structure into YAML config
-- **`errors.rs`**: Centralized error handling using `thiserror` crate
+- **`main.rs`**: CLI entry point using `clap` subcommands, delegates to module handlers
+- **`lib.rs`**: CLI builder function with `env!("CARGO_PKG_VERSION")` for automatic version sync
+- **`config.rs`**: YAML configuration handling with `.skeletorrc` default and `directories` validation
+- **`tasks.rs`**: File/directory creation logic using `Task` enum and breadth-first traversal
+- **`apply.rs`**: Scaffolding execution with `--dry-run` and `--overwrite` support
+- **`snapshot.rs`**: Reverse operation capturing existing structures to YAML with ignore patterns
+- **`info.rs`**: Metadata extraction and display from configuration files
+- **`errors.rs`**: Centralized error handling with `thiserror` for structured error types
+- **`output.rs`**: Reporter system with `DefaultReporter` and `SilentReporter` for flexible output
+- **`test_utils.rs`**: Shared testing framework with CLI utilities and standardized patterns
+
+### Development Infrastructure
+
+- **`scripts/check-version-consistency.sh`**: Version drift detection with colored output
+- **`scripts/setup-git-hooks.sh`**: Development environment setup with pre-commit hooks  
+- **`scripts/pre-commit.sh`**: Git hook for automated version consistency validation
+- **`DEVELOPMENT.md`**: Comprehensive developer guide with workflows and best practices
+- **`.github/workflows/CI.yml`**: Automated testing, coverage, and version validation
 
 ### YAML Configuration Pattern
 
-The tool expects a specific YAML structure:
+The tool expects a specific YAML structure with `directories` as the root key:
 ```yaml
 directories:
   src:
@@ -32,58 +75,54 @@ directories:
 
 ### Build & Test
 - **Build**: `cargo build --release`
-- **Test**: `cargo test` (comprehensive unit tests in each module)
-- **Coverage**: Uses `cargo-llvm-cov` in CI (see `.github/workflows/CI.yml`)
+- **Test**: `cargo test` with shared utilities in `src/test_utils.rs`
+- **Coverage**: `cargo llvm-cov --html` for >80% coverage target
+- **Linting**: `cargo clippy -- -D warnings` (zero warnings enforced)
 
-### Performance Testing
-- **`100k.yml`**: Large test file with 5000+ lines for performance validation
-- Progress logging every 1000 tasks to avoid I/O overhead (see `tasks.rs:76`)
+### Version Management
+- **⚠️ CRITICAL**: NEVER manually update version numbers! Use `cargo-release` only
+- **Single source**: Version in `Cargo.toml`, auto-propagated via `env!("CARGO_PKG_VERSION")`
+- **Drift detection**: `./scripts/check-version-consistency.sh` validates consistency
+- **Release command**: `cargo release patch|minor|major --execute`
 
-### Release Process
-- **Single source of truth**: Version defined in `Cargo.toml`, manually synced to `main.rs:17`
-- **Versioning scheme**: Follows 0.x.y pre-1.0 semver convention for Rust CLIs
-- **Modern tooling**: Uses `cargo-release` for automated releases (see `release.toml`)
-- **Commands**: `cargo release patch|minor|major --execute` (dry-run by default)
-- **`install.sh`**: Installation script for end users
+### Testing Framework
+- **Shared utilities**: `src/test_utils.rs` with `TestFileSystem` and `create_*_matches()`
+- **CLI testing**: Standardized patterns eliminate duplication across modules
+- **Integration tests**: `tests/integration_test.rs` with dynamic version verification
+- **Coverage target**: Maintain >80% with comprehensive edge case validation
 
 ## Project-Specific Patterns
 
 ### Task Processing
-- Uses breadth-first traversal (`traverse_structure` in `tasks.rs`)
-- Batch processing with progress logging every 1000 operations
-- Parent directory creation is automatic for files
+- Breadth-first traversal via `traverse_structure` in `tasks.rs`
+- Progress logging every 1000 operations to avoid I/O overhead
+- Automatic parent directory creation for files
 
-### Glob Pattern Handling
-- Snapshot mode supports `.gitignore`-style patterns via `globset` crate
-- Patterns can be file paths (reads content) or direct glob strings
-- Binary file detection for content inclusion decisions
-
-### Error Handling
-- Custom `SkeletorError` enum wraps common error types (IO, YAML, Config)
-- Graceful degradation: warns on individual file failures, continues processing
-
-### CLI Design Conventions
+### CLI Argument Handling
 - All subcommands support `--dry-run` for safe preview
-- Input defaults to `.skeletorrc` if not specified via `default_file_path()`
-- Overwrite protection by default (explicit `--overwrite` flag required)
+- Input defaults to `.skeletorrc` via `default_file_path()`
+- Overwrite protection by default (explicit `--overwrite` required)
+- Positional arguments for config files (v0.3.1+)
+
+### Error Handling & Output
+- `SkeletorError` enum with `thiserror` for structured errors
+- Professional CLI output: lowercase prefixes (`error:`, `info:`, `tip:`)
+- Graceful degradation: warn on individual failures, continue processing
+- Reporter system: `DefaultReporter` for colored output, `SilentReporter` for programmatic use
 
 ## Dependencies & Integration
 
 ### Key External Crates
-- **`clap`**: CLI parsing with derive features
-- **`serde_yaml`**: YAML processing (expects `Value::Mapping` for directories)
-- **`globset`**: Pattern matching for ignore functionality
-- **`chrono`**: Timestamp generation for snapshots
-- **`thiserror`**: Structured error handling
+- **`clap`**: CLI parsing with derive features and subcommand support
+- **`serde_yaml`**: YAML processing expecting `Value::Mapping` for directories
+- **`globset`**: Pattern matching for snapshot ignore functionality
+- **`chrono`**: Timestamp generation for snapshot metadata
+- **`thiserror`**: Structured error handling with context preservation
+- **`tempfile`**: Isolated test environments and temporary file management
+- **`termcolor`**: Professional colored output with CLI hygiene standards
 
-### Testing Framework
-- Uses `tempfile` for isolated test environments
-- Each module has comprehensive unit tests
-- CLI argument parsing has dedicated test coverage
-
-## File Structure Conventions
-
-- Source modules are flat in `src/` (no subdirectories)
-- Each feature gets its own module (`apply`, `snapshot`, `info`)
-- Shared utilities in `config.rs` and `tasks.rs`
-- Test files co-located with implementation
+### File Structure Conventions
+- Source modules flat in `src/` (no subdirectories)
+- Each feature in own module: `apply`, `snapshot`, `info`, `output`
+- Shared utilities: `config.rs`, `tasks.rs`, `test_utils.rs`
+- Tests co-located with implementation using standardized helpers

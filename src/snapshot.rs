@@ -12,67 +12,90 @@ use std::time::Instant;
 use termcolor::{StandardStream, ColorChoice, Color, ColorSpec, WriteColor};
 use std::io::Write;
 
-/// Helper function to print colored timing information
-fn print_colored_duration(duration: std::time::Duration) {
+/// Helper function to print colored timing information with standardized formatting
+fn print_colored_duration(prefix: &str, duration: std::time::Duration) {
     let mut stdout = StandardStream::stdout(ColorChoice::Auto);
-    print!("Snapshot generated in ");
+    print!("{}", prefix);
     let _ = stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)).set_bold(true));
     let _ = write!(stdout, "{:.2}ms", duration.as_micros() as f64 / 1000.0);
     let _ = stdout.reset();
     println!();
 }
 
-/// Runs the snapshot subcommand: Generates a structured snapshot and writes it to disk.
-pub fn run_snapshot(matches: &ArgMatches) -> Result<(), SkeletorError> {
-    let source_path = PathBuf::from(matches.get_one::<String>("source").unwrap());
-    let output_path = default_file_path(matches.get_one::<String>("output"));
-    let include_contents = matches.get_flag("include_contents"); // No forced `true`
-    let dry_run = matches.get_flag("dry_run");
-    let verbose = matches.get_flag("verbose");
-    let user_note = matches.get_one::<String>("note").map(|s| s.to_string());
+/// Configuration for snapshot command extracted from CLI arguments
+struct SnapshotConfig {
+    pub source_path: PathBuf,
+    pub output_path: PathBuf,
+    pub include_contents: bool,
+    pub dry_run: bool,
+    pub verbose: bool,
+    pub user_note: Option<String>,
+}
 
-    info!("Taking snapshot of folder: {:?}", source_path);
-    let start_time = Instant::now();
+impl SnapshotConfig {
+    fn from_matches(matches: &ArgMatches) -> Self {
+        Self {
+            source_path: PathBuf::from(matches.get_one::<String>("source").unwrap()),
+            output_path: default_file_path(matches.get_one::<String>("output")),
+            include_contents: matches.get_flag("include_contents"),
+            dry_run: matches.get_flag("dry_run"),
+            verbose: matches.get_flag("verbose"),
+            user_note: matches.get_one::<String>("note").map(|s| s.to_string()),
+        }
+    }
+}
 
-    // ✅ Process ignore patterns correctly
-    let ignore_patterns = collect_ignore_patterns(matches)?;
-    
-    // Store verbose info for later display
+/// Handles verbose information collection and display
+fn prepare_verbose_info(ignore_patterns: &[String], verbose: bool) -> Vec<String> {
     let mut verbose_info = Vec::new();
     if verbose {
         verbose_info.push(format!("Loaded ignore patterns: {:?}", ignore_patterns));
         if !ignore_patterns.is_empty() {
-            for pattern in &ignore_patterns {
+            for pattern in ignore_patterns {
                 verbose_info.push(format!("Added ignore pattern: {}", pattern));
             }
         }
     } else if !ignore_patterns.is_empty() {
         println!("Using {} ignore pattern(s)", ignore_patterns.len());
     }
+    verbose_info
+}
 
-    // Build globset without verbose output during processing
+/// Runs the snapshot subcommand: Generates a structured snapshot and writes it to disk.
+pub fn run_snapshot(matches: &ArgMatches) -> Result<(), SkeletorError> {
+    let config = SnapshotConfig::from_matches(matches);
+    
+    info!("Taking snapshot of folder: {:?}", config.source_path);
+    let start_time = Instant::now();
+
+    // Process ignore patterns and prepare verbose information
+    let ignore_patterns = collect_ignore_patterns(matches)?;
+    let verbose_info = prepare_verbose_info(&ignore_patterns, config.verbose);
+
+    // Build globset and take snapshot
     let globset = build_globset(&ignore_patterns, false)?;
-
-    // ✅ Take the snapshot (Directory Traversal) - suppress verbose output during processing
-    let (dir_snapshot, binary_files) =
-        traverse_directory(&source_path, include_contents, globset.as_ref(), false)?;
+    let (dir_snapshot, binary_files) = traverse_directory(
+        &config.source_path, 
+        config.include_contents, 
+        globset.as_ref(), 
+        false
+    )?;
     let (files_count, dirs_count) = compute_stats(&dir_snapshot);
 
-    // ✅ Build snapshot metadata
+    // Build and write snapshot
     let snapshot = build_snapshot(
-        &output_path,
-        user_note,
+        &config.output_path,
+        config.user_note,
         dir_snapshot,
         binary_files,
         files_count,
         dirs_count,
     )?;
 
-    // ✅ Output the snapshot
     let duration = start_time.elapsed();
-    write_snapshot(snapshot, &output_path, dry_run, verbose_info)?;
-
-    print_colored_duration(duration);
+    write_snapshot(snapshot, &config.output_path, config.dry_run, verbose_info)?;
+    print_colored_duration("Snapshot generated in ", duration);
+    
     Ok(())
 }
 
@@ -236,37 +259,7 @@ mod tests {
     use std::panic;
 
     use super::*;
-    use clap::{Arg, ArgAction, Command, ArgMatches};
     use tempfile::tempdir;
-
-    /// Helper function to parse CLI args for testing.
-    fn get_test_matches(subcommand: &str, args: &[&str]) -> Option<ArgMatches> {
-        let command = Command::new("skeletor")
-            .subcommand(
-                Command::new("snapshot")
-                    .about("Create a snapshot of a directory")
-                    .arg(Arg::new("source").value_name("FOLDER").required(true))
-                    .arg(Arg::new("output").short('o').long("output").value_name("FILE"))
-                    .arg(Arg::new("include_contents").long("include-contents").action(ArgAction::SetTrue))
-                    .arg(Arg::new("ignore").short('i').long("ignore").value_name("PATTERN_OR_FILE").action(ArgAction::Append))
-                    .arg(Arg::new("dry_run").short('d').long("dry-run").action(ArgAction::SetTrue))
-                    .arg(Arg::new("verbose").short('v').long("verbose").action(ArgAction::SetTrue))
-                    .arg(Arg::new("note").short('n').long("note").value_name("NOTE")),
-            );
-    
-        // 🛠 Fix: Ensure `"skeletor"` comes first, then `"snapshot"`, then `args`
-        let args_iter = std::iter::once("skeletor").chain(std::iter::once(subcommand)).chain(args.iter().copied());
-    
-        match command.try_get_matches_from(args_iter) {
-            Ok(matches) => matches.subcommand_matches(subcommand).cloned(),
-            Err(e) => {
-                println!("❌ Failed to parse arguments: {:?}", e);
-                None
-            }
-        }
-    }
-    
-    
 
     #[test]
     fn test_snapshot_directory_without_contents() {
@@ -370,7 +363,7 @@ mod tests {
 
         let args = vec![test_dir.to_str().unwrap(), "--dry-run"];
 
-        if let Some(sub_m) = get_test_matches("snapshot", &args) {
+        if let Some(sub_m) = crate::test_utils::helpers::create_snapshot_matches(args) {
             let result = run_snapshot(&sub_m);
             assert!(result.is_ok());
         } else {
@@ -395,7 +388,7 @@ mod tests {
             output_file.to_str().unwrap(),
         ];
 
-        if let Some(sub_m) = get_test_matches("snapshot", &args) {
+        if let Some(sub_m) = crate::test_utils::helpers::create_snapshot_matches(args) {
             let result = run_snapshot(&sub_m);
             assert!(result.is_ok());
             assert!(output_file.exists());
@@ -423,7 +416,7 @@ mod tests {
             "--ignore",
             ignore_file.to_str().unwrap(),
         ];
-        if let Some(sub_m) = get_test_matches("snapshot", &args) {
+        if let Some(sub_m) = crate::test_utils::helpers::create_snapshot_matches(args) {
             let result = run_snapshot(&sub_m);
             assert!(result.is_ok(), "run_snapshot failed: {:?}", result);
         } else {
@@ -442,7 +435,7 @@ mod tests {
         fs::write(src.join("binary.bin"), [0, 159, 146, 150]).unwrap();
 
         let args = vec![test_dir.to_str().unwrap()];
-        if let Some(sub_m) = get_test_matches("snapshot", &args) {
+        if let Some(sub_m) = crate::test_utils::helpers::create_snapshot_matches(args) {
             let result = run_snapshot(&sub_m);
             assert!(result.is_ok(), "run_snapshot failed: {:?}", result);
         } else {
@@ -467,7 +460,7 @@ mod tests {
             "--note",
             "This is a test note",
         ];
-        if let Some(sub_m) = get_test_matches("snapshot", &args) {
+        if let Some(sub_m) = crate::test_utils::helpers::create_snapshot_matches(args) {
             let result = run_snapshot(&sub_m);
             assert!(result.is_ok());
             assert!(output_file.exists());
@@ -510,7 +503,7 @@ src:
             "--output",
             output_file.to_str().unwrap(),
         ];
-        if let Some(sub_m) = get_test_matches("snapshot", &args) {
+        if let Some(sub_m) = crate::test_utils::helpers::create_snapshot_matches(args) {
             let result = run_snapshot(&sub_m);
             assert!(result.is_ok());
         } else {
@@ -529,7 +522,7 @@ src:
         fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
 
         let args = vec![test_dir.to_str().unwrap()];
-        if let Some(sub_m) = get_test_matches("snapshot", &args) {
+        if let Some(sub_m) = crate::test_utils::helpers::create_snapshot_matches(args) {
             let result = run_snapshot(&sub_m);
             assert!(result.is_ok(), "run_snapshot failed: {:?}", result);
         } else {

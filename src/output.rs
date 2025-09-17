@@ -274,6 +274,33 @@ impl Default for DefaultReporter {
     }
 }
 
+/// Utility functions for consistent output formatting
+pub mod utils {
+    use std::time::Duration;
+    use termcolor::{StandardStream, ColorChoice, Color, ColorSpec, WriteColor};
+    use std::io::Write;
+
+    /// Print colored duration with consistent formatting across all commands
+    pub fn print_colored_duration(prefix: &str, duration: Duration) {
+        let mut stdout = StandardStream::stdout(ColorChoice::Auto);
+        print!("{}", prefix);
+        let _ = stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)).set_bold(true));
+        let _ = write!(stdout, "{:.2}ms", duration.as_micros() as f64 / 1000.0);
+        let _ = stdout.reset();
+        println!();
+    }
+
+    /// Helper function for printing colored inline text (extracted from DefaultReporter)
+    pub fn write_colored_inline(text: &str, color: Option<Color>) {
+        let mut stdout = StandardStream::stdout(ColorChoice::Auto);
+        if let Some(c) = color {
+            let _ = stdout.set_color(ColorSpec::new().set_fg(Some(c)).set_bold(true));
+        }
+        let _ = write!(stdout, "{}", text);
+        let _ = stdout.reset();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
