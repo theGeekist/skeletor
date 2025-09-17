@@ -3,6 +3,78 @@ use serde_yaml::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// Configuration for Skeletor scaffolding operations
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct SkeletorConfig {
+    pub directories: Value,
+    pub metadata: Option<SkeletorMetadata>,
+}
+
+/// Metadata associated with a Skeletor configuration
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct SkeletorMetadata {
+    pub created: Option<String>,
+    pub updated: Option<String>,
+    pub generated_comments: Option<String>,
+    pub stats: Option<(usize, usize)>, // (files, directories)
+    pub blacklist: Option<Vec<String>>,
+}
+
+#[allow(dead_code)]
+impl SkeletorConfig {
+    /// Create a new configuration from a YAML value
+    pub fn new(directories: Value) -> Self {
+        Self {
+            directories,
+            metadata: None,
+        }
+    }
+
+    /// Create a configuration from a YAML string
+    pub fn from_yaml_str(yaml: &str) -> Result<Self, SkeletorError> {
+        let yaml_doc: Value = serde_yaml::from_str(yaml)
+            .map_err(|e| SkeletorError::Config(format!("YAML parsing error: {}", e)))?;
+
+        let directories = yaml_doc
+            .get("directories")
+            .ok_or_else(|| SkeletorError::Config("'directories' key is missing".into()))?
+            .clone();
+
+        let metadata = Self::extract_metadata(&yaml_doc);
+
+        Ok(Self {
+            directories,
+            metadata,
+        })
+    }
+
+    /// Create a configuration from a file
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, SkeletorError> {
+        let content = fs::read_to_string(path)?;
+        Self::from_yaml_str(&content)
+    }
+
+    fn extract_metadata(yaml_doc: &Value) -> Option<SkeletorMetadata> {
+        Some(SkeletorMetadata {
+            created: yaml_doc.get("created").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            updated: yaml_doc.get("updated").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            generated_comments: yaml_doc.get("generated_comments").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            stats: yaml_doc.get("stats").and_then(|stats| {
+                let files = stats.get("files")?.as_u64()? as usize;
+                let directories = stats.get("directories")?.as_u64()? as usize;
+                Some((files, directories))
+            }),
+            blacklist: yaml_doc.get("blacklist").and_then(|v| {
+                v.as_sequence()?.iter()
+                    .map(|item| item.as_str().map(|s| s.to_string()))
+                    .collect::<Option<Vec<_>>>()
+            }),
+        })
+    }
+}
+
 pub fn read_config(path: &Path) -> Result<Value, SkeletorError> {
     let content = fs::read_to_string(path)?;
     let yaml_doc: Value = serde_yaml::from_str(&content)
