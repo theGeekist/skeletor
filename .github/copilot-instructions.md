@@ -42,7 +42,9 @@ directories:
 ### Release Process
 - **Single source of truth**: Version defined in `Cargo.toml`, manually synced to `main.rs:17`
 - **Versioning scheme**: Follows 0.x.y pre-1.0 semver convention for Rust CLIs
-- **`release.sh`**: Automated release script
+- **Modern tooling**: Uses `cargo-release` for automated releases (see `release.toml`)
+- **Commands**: `cargo release patch|minor|major --execute` (dry-run by default)
+- **Legacy script**: `release.sh` exists but `cargo-release` is preferred
 - **`install.sh`**: Installation script for end users
 
 ## Project-Specific Patterns
