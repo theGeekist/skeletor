@@ -35,11 +35,11 @@ impl SkeletorConfig {
     /// Create a configuration from a YAML string
     pub fn from_yaml_str(yaml: &str) -> Result<Self, SkeletorError> {
         let yaml_doc: Value = serde_yaml::from_str(yaml)
-            .map_err(|e| SkeletorError::Config(format!("YAML parsing error: {}", e)))?;
+            .map_err(|e| SkeletorError::invalid_yaml(e.to_string()))?;
 
         let directories = yaml_doc
             .get("directories")
-            .ok_or_else(|| SkeletorError::Config("'directories' key is missing".into()))?
+            .ok_or_else(|| SkeletorError::missing_config_key("directories"))?
             .clone();
 
         let metadata = Self::extract_metadata(&yaml_doc);
@@ -52,7 +52,9 @@ impl SkeletorConfig {
 
     /// Create a configuration from a file
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, SkeletorError> {
-        let content = fs::read_to_string(path)?;
+        let path = path.as_ref();
+        let content = fs::read_to_string(path)
+            .map_err(|e| SkeletorError::from_io_with_context(e, path.to_path_buf()))?;
         Self::from_yaml_str(&content)
     }
 
@@ -76,14 +78,15 @@ impl SkeletorConfig {
 }
 
 pub fn read_config(path: &Path) -> Result<Value, SkeletorError> {
-    let content = fs::read_to_string(path)?;
+    let content = fs::read_to_string(path)
+        .map_err(|e| SkeletorError::from_io_with_context(e, path.to_path_buf()))?;
     let yaml_doc: Value = serde_yaml::from_str(&content)
-        .map_err(|e| SkeletorError::Config(format!("YAML parsing error: {}", e)))?;
+        .map_err(|e| SkeletorError::invalid_yaml(e.to_string()))?;
 
     let directories = yaml_doc
         .get("directories")
         .and_then(Value::as_mapping)
-        .ok_or_else(|| SkeletorError::Config("'directories' key is missing or invalid".into()))?;
+        .ok_or_else(|| SkeletorError::missing_config_key("directories"))?;
 
     Ok(Value::Mapping(directories.clone()))
 }

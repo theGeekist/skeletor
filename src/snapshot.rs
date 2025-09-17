@@ -9,14 +9,26 @@ use serde_yaml::{Mapping, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
+use termcolor::{StandardStream, ColorChoice, Color, ColorSpec, WriteColor};
+use std::io::Write;
 
-/// Runs the snapshot subcommand: Generates a structured snapshot and writes it to disk.
+/// Helper function to print colored timing information
+fn print_colored_duration(duration: std::time::Duration) {
+    let mut stdout = StandardStream::stdout(ColorChoice::Auto);
+    print!("Snapshot generated in ");
+    let _ = stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)).set_bold(true));
+    let _ = write!(stdout, "{:.2}ms", duration.as_micros() as f64 / 1000.0);
+    let _ = stdout.reset();
+    println!();
+}
+
 /// Runs the snapshot subcommand: Generates a structured snapshot and writes it to disk.
 pub fn run_snapshot(matches: &ArgMatches) -> Result<(), SkeletorError> {
     let source_path = PathBuf::from(matches.get_one::<String>("source").unwrap());
     let output_path = default_file_path(matches.get_one::<String>("output"));
     let include_contents = matches.get_flag("include_contents"); // No forced `true`
     let dry_run = matches.get_flag("dry_run");
+    let verbose = matches.get_flag("verbose");
     let user_note = matches.get_one::<String>("note").map(|s| s.to_string());
 
     info!("Taking snapshot of folder: {:?}", source_path);
@@ -24,13 +36,26 @@ pub fn run_snapshot(matches: &ArgMatches) -> Result<(), SkeletorError> {
 
     // ✅ Process ignore patterns correctly
     let ignore_patterns = collect_ignore_patterns(matches)?;
-    println!("Loaded ignore patterns: {:?}", ignore_patterns); // Debugging
+    
+    // Store verbose info for later display
+    let mut verbose_info = Vec::new();
+    if verbose {
+        verbose_info.push(format!("Loaded ignore patterns: {:?}", ignore_patterns));
+        if !ignore_patterns.is_empty() {
+            for pattern in &ignore_patterns {
+                verbose_info.push(format!("Added ignore pattern: {}", pattern));
+            }
+        }
+    } else if !ignore_patterns.is_empty() {
+        println!("Using {} ignore pattern(s)", ignore_patterns.len());
+    }
 
-    let globset = build_globset(&ignore_patterns)?;
+    // Build globset without verbose output during processing
+    let globset = build_globset(&ignore_patterns, false)?;
 
-    // ✅ Take the snapshot (Directory Traversal)
+    // ✅ Take the snapshot (Directory Traversal) - suppress verbose output during processing
     let (dir_snapshot, binary_files) =
-        traverse_directory(&source_path, include_contents, globset.as_ref())?;
+        traverse_directory(&source_path, include_contents, globset.as_ref(), false)?;
     let (files_count, dirs_count) = compute_stats(&dir_snapshot);
 
     // ✅ Build snapshot metadata
@@ -45,9 +70,9 @@ pub fn run_snapshot(matches: &ArgMatches) -> Result<(), SkeletorError> {
 
     // ✅ Output the snapshot
     let duration = start_time.elapsed();
-    write_snapshot(snapshot, &output_path, dry_run)?;
+    write_snapshot(snapshot, &output_path, dry_run, verbose_info)?;
 
-    println!("\nSnapshot generated in {:?}", duration);
+    print_colored_duration(duration);
     Ok(())
 }
 
@@ -60,7 +85,8 @@ fn collect_ignore_patterns(matches: &ArgMatches) -> Result<Vec<String>, Skeletor
             let candidate = Path::new(val);
             if candidate.exists() && candidate.is_file() {
                 // Read file (e.g., `.gitignore`) and add valid patterns
-                let content = fs::read_to_string(candidate)?;
+                let content = fs::read_to_string(candidate)
+                    .map_err(|e| SkeletorError::from_io_with_context(e, candidate.to_path_buf()))?;
                 for line in content.lines() {
                     let trimmed = line.trim();
                     if !trimmed.is_empty() && !trimmed.starts_with('#') {
@@ -76,7 +102,7 @@ fn collect_ignore_patterns(matches: &ArgMatches) -> Result<Vec<String>, Skeletor
     Ok(ignore_patterns)
 }
 
-fn build_globset(ignore_patterns: &[String]) -> Result<Option<GlobSet>, SkeletorError> {
+fn build_globset(ignore_patterns: &[String], verbose: bool) -> Result<Option<GlobSet>, SkeletorError> {
     if ignore_patterns.is_empty() {
         return Ok(None);
     }
@@ -86,11 +112,15 @@ fn build_globset(ignore_patterns: &[String]) -> Result<Option<GlobSet>, Skeletor
         let normalized_pattern = pat.trim().to_string();
         match Glob::new(&normalized_pattern) {
             Ok(glob) => {
-                println!("Added ignore pattern: {}", normalized_pattern);
+                if verbose {
+                    println!("Added ignore pattern: {}", normalized_pattern);
+                }
                 builder.add(glob);
             }
             Err(e) => {
-                eprintln!("Invalid glob pattern: {} - {}", normalized_pattern, e);
+                return Err(SkeletorError::InvalidIgnorePattern { 
+                    pattern: format!("{} ({})", normalized_pattern, e) 
+                });
             }
         }
     }
@@ -98,7 +128,9 @@ fn build_globset(ignore_patterns: &[String]) -> Result<Option<GlobSet>, Skeletor
     builder
         .build()
         .map(Some)
-        .map_err(|e| SkeletorError::Config(format!("Failed to build GlobSet: {}", e)))
+        .map_err(|e| SkeletorError::InvalidIgnorePattern { 
+            pattern: format!("Failed to compile ignore patterns: {}", e) 
+        })
 }
 
 /// Builds a structured snapshot with metadata.
@@ -166,16 +198,34 @@ fn build_snapshot(
 }
 
 /// Writes the snapshot to disk or prints it for dry-run mode.
-fn write_snapshot(snapshot: Value, output_path: &Path, dry_run: bool) -> Result<(), SkeletorError> {
+fn write_snapshot(snapshot: Value, output_path: &Path, dry_run: bool, verbose_info: Vec<String>) -> Result<(), SkeletorError> {
     let out_str =
         serde_yaml::to_string(&snapshot).map_err(|e| SkeletorError::Config(e.to_string()))?;
 
     if dry_run {
+        // For snapshot, always show the full YAML content as it's typically readable
+        // The verbose flag controls additional metadata display
         println!("Dry run enabled. The following snapshot would be generated:");
         println!("{}", out_str);
+        
+        // Display verbose information at the end only if verbose
+        if !verbose_info.is_empty() {
+            println!("Verbose Information:");
+            for info in verbose_info {
+                println!("{}", info);
+            }
+        }
     } else {
-        fs::write(output_path, out_str)?;
+        fs::write(output_path, out_str)
+            .map_err(|e| SkeletorError::from_io_with_context(e, output_path.to_path_buf()))?;
         println!("Snapshot written to {:?}", output_path);
+        
+        // Display verbose information at the end for non-dry-run too
+        if !verbose_info.is_empty() {
+            for info in verbose_info {
+                println!("{}", info);
+            }
+        }
     }
 
     Ok(())
@@ -200,6 +250,7 @@ mod tests {
                     .arg(Arg::new("include_contents").long("include-contents").action(ArgAction::SetTrue))
                     .arg(Arg::new("ignore").short('I').long("ignore").value_name("PATTERN_OR_FILE").action(ArgAction::Append))
                     .arg(Arg::new("dry_run").short('d').long("dry-run").action(ArgAction::SetTrue))
+                    .arg(Arg::new("verbose").short('v').long("verbose").action(ArgAction::SetTrue))
                     .arg(Arg::new("note").short('n').long("note").value_name("NOTE")),
             );
     
@@ -229,7 +280,7 @@ mod tests {
         // Hidden file should be included.
         fs::write(src.join(".hidden.txt"), "secret").unwrap();
 
-        let (yaml_structure, binaries) = traverse_directory(test_dir, false, None).unwrap();
+        let (yaml_structure, binaries) = traverse_directory(test_dir, false, None, false).unwrap();
 
         if let Value::Mapping(map) = yaml_structure {
             // Expect "src" key exists.
@@ -253,7 +304,7 @@ mod tests {
         // Hidden file should be included.
         fs::write(src.join(".hidden.txt"), "secret").unwrap();
 
-        let (yaml_structure, binaries) = traverse_directory(test_dir, true, None).unwrap();
+        let (yaml_structure, binaries) = traverse_directory(test_dir, true, None, false).unwrap();
 
         if let Value::Mapping(map) = yaml_structure {
             // Expect "src" key exists.
@@ -295,7 +346,7 @@ mod tests {
         // Hidden file should be included.
         fs::write(src.join(".hidden.txt"), "secret").unwrap();
 
-        let (yaml_structure, binaries) = traverse_directory(test_dir, false, None).unwrap();
+        let (yaml_structure, binaries) = traverse_directory(test_dir, false, None, false).unwrap();
 
         if let Value::Mapping(map) = yaml_structure {
             // Expect "src" key exists.

@@ -106,11 +106,17 @@ pub fn traverse_directory(
     base: &Path,
     include_contents: bool,
     ignore: Option<&GlobSet>,
+    verbose: bool,
 ) -> Result<(Value, Vec<String>), SkeletorError> {
     let mut mapping = serde_yaml::Mapping::new();
     let mut binaries: Vec<String> = vec![];
 
-    for entry in fs::read_dir(base)? {
+    for entry in fs::read_dir(base).map_err(|e| {
+        match e.kind() {
+            std::io::ErrorKind::NotFound => SkeletorError::directory_not_found(base.to_path_buf()),
+            _ => SkeletorError::from_io_with_context(e, base.to_path_buf())
+        }
+    })? {
         let entry = entry?;
         let file_name = entry.file_name();
         let file_name_string = file_name.to_string_lossy().into_owned();
@@ -130,14 +136,16 @@ pub fn traverse_directory(
 
         if let Some(globset) = ignore {
             if globset.is_match(&relative_str) {
-                println!("Ignoring: {:?}", relative_str); // Debugging
+                if verbose {
+                    println!("Ignoring: {:?}", relative_str);
+                }
                 continue;
             }
         }
 
         let path = entry.path();
         if path.is_dir() {
-            let (sub_yaml, mut sub_binaries) = traverse_directory(&path, include_contents, ignore)?;
+            let (sub_yaml, mut sub_binaries) = traverse_directory(&path, include_contents, ignore, verbose)?;
             mapping.insert(Value::String(file_name_string), sub_yaml);
             binaries.append(&mut sub_binaries);
         } else if path.is_file() && include_contents {
@@ -272,7 +280,7 @@ mod tests {
         // Hidden file should be included.
         fs::write(src.join(".hidden.txt"), "secret").unwrap();
 
-        let (yaml_structure, binaries) = traverse_directory(test_dir, false, None).unwrap();
+        let (yaml_structure, binaries) = traverse_directory(test_dir, false, None, false).unwrap();
 
         if let Value::Mapping(map) = yaml_structure {
             // Expect "src" key exists.
