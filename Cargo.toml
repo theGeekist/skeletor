@@ -21,7 +21,20 @@ globset = "0.4.15"
 log = "0.4.22"
 serde_yaml = "0.9.34"
 thiserror = "1.0.64"
+termcolor = "1.4.1"  # For colored terminal output
 
 [dev-dependencies]
 tempfile = "3.13.0"
+
+[[bin]]
+name = "skeletor"
+path = "src/main.rs"
+
+[lib]
+name = "skeletor"
+path = "src/lib.rs"
+
+[[example]]
+name = "library_demo"
+path = "examples/library_demo.rs"
 

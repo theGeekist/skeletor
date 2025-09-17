@@ -120,6 +120,48 @@ Display metadata from a `.skeletorrc` file.
 skeletor info
 ```
 
+## 📚 Library Usage
+Skeletor can be used as a Rust library for programmatic scaffolding in your applications.
+
+### Add to Cargo.toml
+```toml
+[dependencies]
+skeletor = "0.2"
+```
+
+### Basic Usage
+```rust
+use skeletor::{SkeletorConfig, apply_config};
+use std::path::Path;
+
+// Load configuration from YAML string
+let config = SkeletorConfig::from_yaml_str(r#"
+directories:
+  src:
+    main.rs: |
+      fn main() {
+          println!("Hello, world!");
+      }
+  tests:
+    test.rs: "// Test content"
+"#)?;
+
+// Apply configuration to target directory
+let result = apply_config(&config, Path::new("./my-project"), false, false)?;
+
+println!("Created {} files and {} directories in {:?}",
+    result.files_created, result.dirs_created, result.duration);
+```
+
+### Use Cases
+- **MCP Servers**: Integrate with Model Context Protocol for AI-driven scaffolding
+- **Web Services**: Create project templates via REST APIs
+- **Build Tools**: Generate code structures in build pipelines
+- **IDE Extensions**: Provide scaffolding capabilities in editors
+- **Custom CLIs**: Build domain-specific scaffolding tools
+
+See [`examples/library_demo.rs`](examples/library_demo.rs) for a complete example.
+
 ## 🤝 Contributing
 Contributions are welcome! Open an issue or submit a pull request.
 
