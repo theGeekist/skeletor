@@ -7,7 +7,7 @@ use std::fs;
 /// Runs the info subcommand: prints annotation and stats information from a .skeletorrc file.
 pub fn run_info(matches: &ArgMatches) -> Result<(), SkeletorError> {
     // Use default_file_path so that .skeletorrc is used by default.
-    let input_path = default_file_path(matches.get_one::<String>("input"));
+    let input_path = default_file_path(matches.get_one::<String>("config"));
 
     let content = fs::read_to_string(&input_path)
         .map_err(|e| SkeletorError::from_io_with_context(e, input_path.clone()))?;
@@ -92,11 +92,10 @@ blacklist:
         let matches = Command::new("Skeletor")
             .subcommand(
                 Command::new("info").arg(
-                    Arg::new("input")
-                        .short('i')
-                        .long("input")
-                        .value_name("FILE")
-                        .help("Specify the YAML configuration file"),
+                    Arg::new("config")
+                        .value_name("CONFIG_FILE")
+                        .help("Specify the YAML configuration file")
+                        .index(1),
                 ),
             )
             .get_matches_from(args);
@@ -132,15 +131,14 @@ blacklist:
         )
         .unwrap();
 
-        let args = vec!["skeletor", "info", "--input", config_path.to_str().unwrap()];
+        let args = vec!["skeletor", "info", config_path.to_str().unwrap()];
         let matches = Command::new("Skeletor")
             .subcommand(
                 Command::new("info").arg(
-                    Arg::new("input")
-                        .short('i')
-                        .long("input")
-                        .value_name("FILE")
-                        .help("Specify the YAML configuration file"),
+                    Arg::new("config")
+                        .value_name("CONFIG_FILE")
+                        .help("Specify the YAML configuration file")
+                        .index(1),
                 ),
             )
             .get_matches_from(args);
@@ -154,15 +152,14 @@ blacklist:
 
     #[test]
     fn test_run_info_with_missing_file() {
-        let args = vec!["skeletor", "info", "--input", "missing.yaml"];
+        let args = vec!["skeletor", "info", "missing.yaml"];
         let matches = Command::new("Skeletor")
             .subcommand(
                 Command::new("info").arg(
-                    Arg::new("input")
-                        .short('i')
-                        .long("input")
-                        .value_name("FILE")
-                        .help("Specify the YAML configuration file"),
+                    Arg::new("config")
+                        .value_name("CONFIG_FILE")
+                        .help("Specify the YAML configuration file")
+                        .index(1),
                 ),
             )
             .get_matches_from(args);
@@ -185,15 +182,14 @@ blacklist:
         )
         .unwrap();
 
-        let args = vec!["skeletor", "info", "--input", config_path.to_str().unwrap()];
+        let args = vec!["skeletor", "info", config_path.to_str().unwrap()];
         let matches = Command::new("Skeletor")
             .subcommand(
                 Command::new("info").arg(
-                    Arg::new("input")
-                        .short('i')
-                        .long("input")
-                        .value_name("FILE")
-                        .help("Specify the YAML configuration file"),
+                    Arg::new("config")
+                        .value_name("CONFIG_FILE")
+                        .help("Specify the YAML configuration file")
+                        .index(1),
                 ),
             )
             .get_matches_from(args);
@@ -228,15 +224,14 @@ blacklist:
         )
         .unwrap();
 
-        let args = vec!["skeletor", "info", "--input", config_path.to_str().unwrap()];
+        let args = vec!["skeletor", "info", config_path.to_str().unwrap()];
         let matches = Command::new("Skeletor")
             .subcommand(
                 Command::new("info").arg(
-                    Arg::new("input")
-                        .short('i')
-                        .long("input")
-                        .value_name("FILE")
-                        .help("Specify the YAML configuration file"),
+                    Arg::new("config")
+                        .value_name("CONFIG_FILE")
+                        .help("Specify the YAML configuration file")
+                        .index(1),
                 ),
             )
             .get_matches_from(args);

@@ -248,7 +248,7 @@ mod tests {
                     .arg(Arg::new("source").value_name("FOLDER").required(true))
                     .arg(Arg::new("output").short('o').long("output").value_name("FILE"))
                     .arg(Arg::new("include_contents").long("include-contents").action(ArgAction::SetTrue))
-                    .arg(Arg::new("ignore").short('I').long("ignore").value_name("PATTERN_OR_FILE").action(ArgAction::Append))
+                    .arg(Arg::new("ignore").short('i').long("ignore").value_name("PATTERN_OR_FILE").action(ArgAction::Append))
                     .arg(Arg::new("dry_run").short('d').long("dry-run").action(ArgAction::SetTrue))
                     .arg(Arg::new("verbose").short('v').long("verbose").action(ArgAction::SetTrue))
                     .arg(Arg::new("note").short('n').long("note").value_name("NOTE")),

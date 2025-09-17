@@ -54,13 +54,22 @@ skeletor apply
 ```
 This will **generate the entire folder structure** instantly!
 
+**Use a Custom Template**
+```bash
+skeletor apply my-template.yml
+```
+
 **Preview Before Running**
 ```bash
 # Quick summary of what would be created
 skeletor apply --dry-run
 
+# With custom template
+skeletor apply my-template.yml --dry-run
+
 # Detailed listing of all operations (useful for debugging)
 skeletor apply --dry-run --verbose
+skeletor apply my-template.yml --dry-run --verbose
 ```
 
 ## Installation
@@ -113,7 +122,7 @@ skeletor snapshot . -o my-template.yml
 
 **Ignore files and add a note**
 ```bash
-skeletor snapshot -n "Initial snapshot" -I .gitignore -I .git/ .
+skeletor snapshot -n "Initial snapshot" -i .gitignore -i .git/ .
 ```
 
 **Preview Before Creating**
@@ -127,8 +136,8 @@ skeletor snapshot --dry-run --verbose .
 
 **Common Options**
 - `-o custom.yml` → Save snapshot to file (prints to stdout if omitted)
-- `-I "*.log"` → Exclude files based on patterns (can be used multiple times)
-- `-I .gitignore` → Use .gitignore file patterns for exclusion
+- `-i "*.log"` → Exclude files based on patterns (can be used multiple times)
+- `-i .gitignore` → Use .gitignore file patterns for exclusion
 - `-n "Initial snapshot"` → Add custom notes to the snapshot
 - `--include-contents` → Include file contents for text files (binary files will be empty)
 - `--verbose` → Show detailed ignore pattern matching and file processing info
@@ -141,7 +150,7 @@ Display metadata from a `.skeletorrc` file.
 skeletor info
 
 # Show info for custom file
-skeletor info -i my-template.yml
+skeletor info my-template.yml
 ```
 
 ## Library Usage
