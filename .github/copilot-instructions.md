@@ -1,5 +1,32 @@
 # Skeletor Codebase Instructions
 
+## ⚠️ CRITICAL SAFETY PROTOCOLS
+
+### 🚨 NEVER OPERATE IN PROJECT ROOT
+- **NEVER** run `skeletor apply` commands in the project root directory (`/Users/jasonnathan/Repos/@pipewrk/skeletor`)
+- **NEVER** create YAML test files in the project root - they could overwrite source code with `--overwrite`
+- **NEVER** leave the current working directory when testing skeletor functionality
+- **ALWAYS** use the dedicated `_ops/` directory for ALL testing operations
+
+### 🛡️ MANDATORY TESTING PROTOCOLS
+- **ALL skeletor testing MUST occur in `_ops/` directory only**
+- **Create `_ops/` directory**: `mkdir -p _ops && cd _ops` before any testing
+- **All YAML configs**: Create in `_ops/` subdirectories, never in project root
+- **Apply operations**: Use `--dry-run` first, then only apply in isolated `_ops/` environments
+- **Test `--overwrite`**: Only in `_ops/` with disposable test files, NEVER in project root
+
+### 🔒 WORKSPACE PROTECTION RULES
+- **Current Directory**: Always `cd _ops` before any skeletor apply/snapshot operations
+- **YAML Files**: Only create test configs in `_ops/test-configs/` or similar subdirectories
+- **Source Code**: NEVER risk overwriting `src/`, `tests/`, or any project files
+- **Emergency Check**: Before ANY apply operation, verify `pwd` shows `_ops` subdirectory
+
+### 🚫 FORBIDDEN OPERATIONS
+- ❌ `skeletor apply config.yml` in project root
+- ❌ Creating YAML files that include `src/main.rs` or other source paths
+- ❌ Using `--overwrite` anywhere except controlled `_ops/` test environments
+- ❌ Running apply commands without first checking current directory safety
+
 ## Development Cadences
 
 ### Release Strategy
