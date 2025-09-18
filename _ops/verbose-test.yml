@@ -1,0 +1,36 @@
+directories:
+  src:
+    main.rs: |
+      fn main() {
+          println!("Hello, world!");
+      }
+    lib.rs: |
+      pub mod utils;
+      pub mod config;
+    utils.rs: |
+      pub fn helper() {}
+    config.rs: |
+      pub struct Config {}
+    models:
+      user.rs: |
+        pub struct User {}
+      product.rs: |
+        pub struct Product {}
+      category.rs: |
+        pub struct Category {}
+  tests:
+    integration.rs: |
+      #[test]
+      fn test_main() {}
+    unit.rs: |
+      #[test]
+      fn test_utils() {}
+    helpers.rs: |
+      pub fn setup() {}
+  docs:
+    README.md: |
+      # Project Documentation
+    API.md: |
+      # API Reference
+    CHANGELOG.md: |
+      # Changelog

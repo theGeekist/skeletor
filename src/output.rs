@@ -11,6 +11,10 @@ pub struct SimpleApplyResult {
     pub dirs_created: usize,
     pub duration: Duration,
     pub tasks_total: usize,
+    pub files_skipped: usize,
+    pub skipped_files_list: Vec<String>,
+    pub files_overwritten: usize,
+    pub overwritten_files_list: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -24,12 +28,40 @@ pub struct SimpleSnapshotResult {
 }
 
 impl SimpleApplyResult {
+    #[allow(clippy::too_many_arguments)]    
+    pub fn with_skipped_and_overwritten(
+        files_created: usize, 
+        dirs_created: usize, 
+        duration: Duration, 
+        tasks_total: usize,
+        files_skipped: usize,
+        skipped_files_list: Vec<String>,
+        files_overwritten: usize,
+        overwritten_files_list: Vec<String>
+    ) -> Self {
+        Self {
+            files_created,
+            dirs_created,
+            duration,
+            tasks_total,
+            files_skipped,
+            skipped_files_list,
+            files_overwritten,
+            overwritten_files_list,
+        }
+    }
+
+    #[cfg(test)]
     pub fn new(files_created: usize, dirs_created: usize, duration: Duration, tasks_total: usize) -> Self {
         Self {
             files_created,
             dirs_created,
             duration,
             tasks_total,
+            files_skipped: 0,
+            skipped_files_list: Vec::new(),
+            files_overwritten: 0,
+            overwritten_files_list: Vec::new(),
         }
     }
 }
@@ -73,8 +105,8 @@ pub trait Reporter {
     /// Show operations that will be executed (verbose mode)
     fn verbose_operation_preview(&self, tasks: &[Task]);
     
-    /// Report completion of apply operation
-    fn apply_complete(&self, result: &SimpleApplyResult);
+    /// Report successful completion of apply operation with optional verbose output
+    fn apply_complete(&self, result: &SimpleApplyResult, verbose: bool);
     
     /// Report completion of snapshot operation  
     fn snapshot_complete(&self, result: &SimpleSnapshotResult);
@@ -352,9 +384,48 @@ impl Reporter for DefaultReporter {
         println!();
     }
     
-    fn apply_complete(&self, result: &SimpleApplyResult) {
+    fn apply_complete(&self, result: &SimpleApplyResult, verbose: bool) {
         match self.format {
             OutputFormat::Pretty => {
+                // Show skipped files with helpful tip
+                if result.files_skipped > 0 {
+                    println!();
+                    if verbose || result.skipped_files_list.len() <= 3 {
+                        println!("Files skipped (already exist):");
+                        for file in &result.skipped_files_list {
+                            println!("  • {}", file);
+                        }
+                    } else {
+                        println!("Files skipped (already exist):");
+                        for file in result.skipped_files_list.iter().take(3) {
+                            println!("  • {}", file);
+                        }
+                        println!("  ... and {} more files", result.skipped_files_list.len() - 3);
+                        println!("tip: Use --verbose to see all skipped files");
+                    }
+                    println!();
+                    self.write_colored_inline("tip: ", Some(Color::Yellow));
+                    println!("Use --overwrite to update existing files");
+                }
+                
+                // Show overwritten files
+                if result.files_overwritten > 0 {
+                    println!();
+                    if verbose || result.overwritten_files_list.len() <= 3 {
+                        println!("Files updated by --overwrite:");
+                        for file in &result.overwritten_files_list {
+                            println!("  • {}", file);
+                        }
+                    } else {
+                        println!("Files updated by --overwrite:");
+                        for file in result.overwritten_files_list.iter().take(3) {
+                            println!("  • {}", file);
+                        }
+                        println!("  ... and {} more files", result.overwritten_files_list.len() - 3);
+                        println!("tip: Use --verbose to see all overwritten files");
+                    }
+                }
+                
                 println!("------------------------------------------");
                 let mut stdout = StandardStream::stdout(ColorChoice::Auto);
                 print!("✅ Successfully generated {} files and {} directories in ", 
@@ -368,6 +439,12 @@ impl Reporter for DefaultReporter {
                 println!("Success!");
                 println!("Directories created: {}", result.dirs_created);
                 println!("Files created: {}", result.files_created);
+                if result.files_skipped > 0 {
+                    println!("Files skipped: {}", result.files_skipped);
+                }
+                if result.files_overwritten > 0 {
+                    println!("Files overwritten: {}", result.files_overwritten);
+                }
                 println!("Duration: {:.2}ms", result.duration.as_micros() as f64 / 1000.0);
                 println!("Total operations: {}", result.tasks_total);
             }
@@ -424,7 +501,7 @@ impl Reporter for SilentReporter {
     fn dry_run_preview_verbose(&self, _tasks: &[Task], _verbose: bool) {}
     fn dry_run_preview_comprehensive(&self, _tasks: &[Task], _verbose: bool, _binary_files: &[String], _ignore_patterns: &[String], _verb: &str) {}
     fn verbose_operation_preview(&self, _tasks: &[Task]) {}
-    fn apply_complete(&self, _result: &SimpleApplyResult) {}
+    fn apply_complete(&self, _result: &SimpleApplyResult, _verbose: bool) {}
     fn snapshot_complete(&self, _result: &SimpleSnapshotResult) {}
 }
 
@@ -479,13 +556,8 @@ mod tests {
         reporter.task_warning(&task, "warning");
         reporter.dry_run_preview(&[task]);
         
-        let apply_result = SimpleApplyResult {
-            files_created: 1,
-            dirs_created: 1,
-            duration: Duration::from_millis(50),
-            tasks_total: 2,
-        };
-        reporter.apply_complete(&apply_result);
+        let apply_result = SimpleApplyResult::new(1, 1, Duration::from_millis(50), 2);
+        reporter.apply_complete(&apply_result, false);
         
         let snapshot_result = SimpleSnapshotResult {
             files_processed: 2,
@@ -510,13 +582,8 @@ mod tests {
         reporter.task_warning(&task, "warning message");
         reporter.dry_run_preview(&[task]);
         
-        let apply_result = SimpleApplyResult {
-            files_created: 3,
-            dirs_created: 2,
-            duration: Duration::from_millis(150),
-            tasks_total: 5,
-        };
-        reporter.apply_complete(&apply_result);
+        let apply_result = SimpleApplyResult::new(3, 2, Duration::from_millis(150), 5);
+        reporter.apply_complete(&apply_result, false);
         
         let snapshot_result = SimpleSnapshotResult {
             files_processed: 4,
@@ -532,15 +599,10 @@ mod tests {
     #[test]
     fn test_plain_format_reporter() {
         let reporter = DefaultReporter::with_format(OutputFormat::Plain);
-        let apply_result = SimpleApplyResult {
-            files_created: 2,
-            dirs_created: 1,
-            duration: Duration::from_millis(75),
-            tasks_total: 3,
-        };
+        let apply_result = SimpleApplyResult::new(2, 1, Duration::from_millis(75), 3);
         
         // Test that plain format doesn't panic
-        reporter.apply_complete(&apply_result);
+        reporter.apply_complete(&apply_result, false);
         
         let snapshot_result = SimpleSnapshotResult {
             files_processed: 5,
@@ -562,12 +624,7 @@ mod tests {
 
     #[test]
     fn test_simple_results_debug() {
-        let apply_result = SimpleApplyResult {
-            files_created: 1,
-            dirs_created: 1,
-            duration: Duration::from_millis(50),
-            tasks_total: 2,
-        };
+        let apply_result = SimpleApplyResult::new(1, 1, Duration::from_millis(50), 2);
         let debug_str = format!("{:?}", apply_result);
         assert!(debug_str.contains("files_created"));
         
@@ -585,12 +642,7 @@ mod tests {
 
     #[test]
     fn test_clone_functionality() {
-        let apply_result = SimpleApplyResult {
-            files_created: 1,
-            dirs_created: 1,
-            duration: Duration::from_millis(50),
-            tasks_total: 2,
-        };
+        let apply_result = SimpleApplyResult::new(1, 1, Duration::from_millis(50), 2);
         let cloned = apply_result.clone();
         assert_eq!(cloned.files_created, apply_result.files_created);
         
@@ -610,8 +662,8 @@ mod tests {
     fn test_verbose_operation_preview() {
         let reporter = DefaultReporter::new();
         let tasks = vec![
-            Task::Dir("src".into()),
-            Task::File("src/main.rs".into(), "fn main() {}".to_string()),
+            Task::Dir("test_output".into()),
+            Task::File("test_output/hello.rs".into(), "fn main() {}".to_string()),
             Task::File("README.md".into(), "# Project".to_string()),
         ];
         
@@ -632,8 +684,8 @@ mod tests {
     fn test_dry_run_preview_comprehensive_verbose() {
         let reporter = DefaultReporter::new();
         let tasks = vec![
-            Task::Dir("src".into()),
-            Task::File("src/main.rs".into(), "fn main() {}".to_string()),
+            Task::Dir("test_preview".into()),
+            Task::File("test_preview/hello.rs".into(), "fn main() {}".to_string()),
         ];
         let binary_files = vec!["image.png".to_string(), "video.mp4".to_string()];
         let ignore_patterns = vec!["*.tmp".to_string(), "node_modules/".to_string()];
@@ -646,10 +698,10 @@ mod tests {
     fn test_dry_run_preview_comprehensive_non_verbose() {
         let reporter = DefaultReporter::new();
         let tasks = vec![
-            Task::Dir("src".into()),
-            Task::File("src/main.rs".into(), "fn main() {}".to_string()),
-            Task::File("lib.rs".into(), "// lib".to_string()),
-            Task::File("tests.rs".into(), "// tests".to_string()),
+            Task::Dir("test_nonverbose".into()),
+            Task::File("test_nonverbose/hello.rs".into(), "fn main() {}".to_string()),
+            Task::File("lib_file.rs".into(), "// lib".to_string()),
+            Task::File("tests_file.rs".into(), "// tests".to_string()),
         ];
         let binary_files = vec!["img1.png".to_string(), "img2.jpg".to_string(), "img3.gif".to_string(), "img4.png".to_string()];
         let ignore_patterns = vec!["*.tmp".to_string(), "*.log".to_string(), "node_modules/".to_string(), "target/".to_string()];
@@ -692,5 +744,131 @@ mod tests {
             (OutputFormat::Pretty, OutputFormat::Pretty) => {},
             _ => panic!("Default implementation doesn't match new()"),
         }
+    }
+
+    #[test]
+    fn test_apply_complete_verbose_vs_non_verbose() {
+        let reporter = DefaultReporter::new();
+        
+        // Test with verbose=true (should show all files)
+        let apply_result = SimpleApplyResult::with_skipped_and_overwritten(
+            5, 2, Duration::from_millis(100), 10,
+            8, vec!["file1.txt".to_string(), "file2.txt".to_string(), "file3.txt".to_string(), "file4.txt".to_string()],
+            3, vec!["over1.txt".to_string(), "over2.txt".to_string(), "over3.txt".to_string()]
+        );
+        reporter.apply_complete(&apply_result, true);
+        
+        // Test with verbose=false (should show limited files + tips)
+        reporter.apply_complete(&apply_result, false);
+    }
+
+    #[test]
+    fn test_apply_complete_no_skips_or_overwrites() {
+        let reporter = DefaultReporter::new();
+        
+        // Test with no skipped or overwritten files
+        let apply_result = SimpleApplyResult::with_skipped_and_overwritten(
+            5, 2, Duration::from_millis(100), 7,
+            0, vec![], 0, vec![]
+        );
+        reporter.apply_complete(&apply_result, false);
+        reporter.apply_complete(&apply_result, true);
+    }
+
+    #[test]
+    fn test_apply_complete_plain_format() {
+        let reporter = DefaultReporter::with_format(OutputFormat::Plain);
+        
+        let apply_result = SimpleApplyResult::with_skipped_and_overwritten(
+            3, 1, Duration::from_millis(75), 5,
+            2, vec!["skip1.txt".to_string(), "skip2.txt".to_string()],
+            1, vec!["over1.txt".to_string()]
+        );
+        reporter.apply_complete(&apply_result, false);
+        reporter.apply_complete(&apply_result, true);
+    }
+
+    #[test]
+    fn test_snapshot_complete_with_binary_files() {
+        let reporter = DefaultReporter::new();
+        
+        let snapshot_result = SimpleSnapshotResult {
+            files_processed: 10,
+            dirs_processed: 3,
+            duration: Duration::from_millis(150),
+            output_path: PathBuf::from("snapshot.yml"),
+            binary_files_excluded: 5,
+            binary_files_list: vec![
+                "image1.png".to_string(),
+                "image2.jpg".to_string(),
+                "binary.exe".to_string(),
+                "video.mp4".to_string(),
+                "data.bin".to_string(),
+            ],
+        };
+        
+        reporter.snapshot_complete(&snapshot_result);
+    }
+
+    #[test]
+    fn test_snapshot_complete_no_binary_files() {
+        let reporter = DefaultReporter::new();
+        
+        let snapshot_result = SimpleSnapshotResult {
+            files_processed: 5,
+            dirs_processed: 2,
+            duration: Duration::from_millis(75),
+            output_path: PathBuf::from("clean_snapshot.yml"),
+            binary_files_excluded: 0,
+            binary_files_list: vec![],
+        };
+        
+        reporter.snapshot_complete(&snapshot_result);
+    }
+
+    #[test]
+    fn test_snapshot_complete_plain_format() {
+        let reporter = DefaultReporter::with_format(OutputFormat::Plain);
+        
+        let snapshot_result = SimpleSnapshotResult {
+            files_processed: 7,
+            dirs_processed: 2,
+            duration: Duration::from_millis(100),
+            output_path: PathBuf::from("plain_snapshot.yml"),
+            binary_files_excluded: 2,
+            binary_files_list: vec!["file1.bin".to_string(), "file2.exe".to_string()],
+        };
+        
+        reporter.snapshot_complete(&snapshot_result);
+    }
+
+    #[test]
+    fn test_with_skipped_and_overwritten_constructor() {
+        let result = SimpleApplyResult::with_skipped_and_overwritten(
+            10, 5, Duration::from_millis(200), 20,
+            3, vec!["skip1".to_string(), "skip2".to_string(), "skip3".to_string()],
+            2, vec!["over1".to_string(), "over2".to_string()]
+        );
+        
+        assert_eq!(result.files_created, 10);
+        assert_eq!(result.dirs_created, 5);
+        assert_eq!(result.tasks_total, 20);
+        assert_eq!(result.files_skipped, 3);
+        assert_eq!(result.skipped_files_list.len(), 3);
+        assert_eq!(result.files_overwritten, 2);
+        assert_eq!(result.overwritten_files_list.len(), 2);
+        assert_eq!(result.duration, Duration::from_millis(200));
+    }
+
+    #[test]
+    fn test_color_output_functionality() {
+        let reporter = DefaultReporter::new();
+        
+        // Test colored output methods (these methods have internal color logic)
+        let task = Task::File("test.txt".into(), "content".to_string());
+        reporter.task_success(&task);
+        reporter.task_warning(&task, "test warning");
+        reporter.operation_start("test", "test operation");
+        reporter.progress(50, 100, "test.txt");
     }
 }

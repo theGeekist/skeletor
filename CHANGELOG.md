@@ -9,6 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
+### Enhanced
+- **Test Coverage Excellence**: Achieved 83.29% coverage (exceeding 80% target)
+  - **Comprehensive Unit Tests**: 44 new tests added across critical modules
+  - **Apply Module**: Enhanced coverage for binary files, ignore patterns, verbose modes, config validation
+  - **Output Module**: Complete testing of verbose/non-verbose behavior, format variations, result types
+  - **Tasks Module**: Thorough testing of CreationResult, overwrite behavior, progress logging, edge cases
+  - **Integration Testing**: Full CLI functionality and library API validation
+- **File Operation Reporting**: Comprehensive tracking and user feedback for file operations
+  - **Skip Reporting**: Files skipped (already exist) now clearly listed with helpful tips
+  - **Overwrite Reporting**: Files updated by `--overwrite` flag now tracked and displayed
+  - **Smart List Management**: Shows first 3 items by default, all items with `--verbose`
+  - **User Guidance**: Helpful tips suggest `--overwrite` for skipped files and `--verbose` for complete lists
+  - **Professional UX**: Clear, actionable feedback without overwhelming default output
+
+### Fixed
+- **CRITICAL Security Issue**: Dangerous test behavior causing source file corruption
+  - **Root Cause**: Tests using `--overwrite` in project root overwrote `src/main.rs` and `src/lib.rs`
+  - **Safety Protocol**: All file-creating tests now use isolated temporary directories
+  - **Git Recovery**: Source files restored from git history after accidental overwrite
+  - **Prevention**: Enhanced safety protocols prevent future catastrophic overwrites
+- **Test Execution Safety**: Fixed parallel test execution race conditions
+  - **Issue**: Multiple tests changing current working directory simultaneously caused interference
+  - **Solution**: CI and test execution now use `--test-threads=1` to prevent directory races
+  - **Impact**: Tests now run safely without creating files in project root directory
+  - **Safe Paths**: All test configurations use descriptive, non-conflicting paths like `test_output/` instead of `src/`
+- **Test Infrastructure**: Robust testing framework with shared utilities
+  - **TestFileSystem**: Isolated testing environments prevent project file corruption
+  - **Helper Functions**: Standardized CLI testing patterns eliminate code duplication
+  - **Error Handling**: Comprehensive edge case coverage and failure scenario testing
+- **Version Consistency**: `check-version-consistency.sh` updated to correctly check against remote git tag
+- **Output System**: Enhanced `SimpleApplyResult` and `CreationResult` for comprehensive file operation tracking
+- **Type System**: Coordinated type system updates across `output.rs`, `tasks.rs`, `apply.rs`, and `lib.rs`
+
 ## [0.3.5] - 2025-09-18
 
 ### Fixed

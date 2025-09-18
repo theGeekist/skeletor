@@ -90,12 +90,11 @@ pub fn apply_config(
             tasks_total: tasks.len(),
         })
     } else {
-        let (files_created, dirs_created) = 
-            tasks::create_files_and_directories(&tasks, overwrite)?;
+        let result = tasks::create_files_and_directories(&tasks, overwrite)?;
         
         Ok(ApplyResult {
-            files_created,
-            dirs_created,
+            files_created: result.files_created,
+            dirs_created: result.dirs_created,
             duration: start_time.elapsed(),
             tasks_total: tasks.len(),
         })
