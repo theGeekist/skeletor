@@ -52,10 +52,17 @@ directories:
     
     // Run apply from temp directory so files are created there
     let binary_path = std::env::current_dir().unwrap().join("target/debug/skeletor");
-    let output = Command::new(binary_path)
+    
+    // Ensure binary exists before trying to run it
+    if !binary_path.exists() {
+        panic!("Skeletor binary not found at {:?}. Run 'cargo build' first.", binary_path);
+    }
+    
+    let output = Command::new(&binary_path)
         .args(["apply", config_file.to_str().unwrap()])
         .current_dir(&temp_dir)
         .output()
+        .map_err(|e| format!("Failed to execute skeletor binary at {:?}: {}", binary_path, e))
         .expect("Failed to run skeletor apply");
     
     assert!(output.status.success(), "Apply command failed: {}", 

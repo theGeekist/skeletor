@@ -412,6 +412,7 @@ impl Reporter for DefaultReporter {
 }
 
 /// Silent reporter that produces no output
+#[allow(dead_code)]
 pub struct SilentReporter;
 
 impl Reporter for SilentReporter {
