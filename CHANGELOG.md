@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
+## [0.3.4] - ReleaseDate
+
 ### Added
 - **Critical Safety Protocols**: Comprehensive protection against dangerous operations
   - **Mandatory Testing Directory**: `_ops/` directory for ALL skeletor testing operations
@@ -207,7 +209,8 @@ let result = apply_config(&config, Path::new("./output"), false, false)?;
 ```
 
 <!-- next-url -->
-[Unreleased]: https://github.com/theGeekist/skeletor/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/theGeekist/skeletor/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/theGeekist/skeletor/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/theGeekist/skeletor/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/theGeekist/skeletor/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/thegeekist/skeletor/releases/tag/v0.3.1
