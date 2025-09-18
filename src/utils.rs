@@ -36,10 +36,9 @@ pub fn read_yaml_file<P: AsRef<Path>>(path: P) -> Result<Value, SkeletorError> {
     parse_yaml_string(&content)
 }
 
-/// Output utilities for consistent formatting
+// Output utilities for consistent formatting
 // Note: For consistent output formatting, use the output.rs module's Reporter system
 // which provides DefaultReporter and SilentReporter with professional CLI formatting.
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -77,7 +76,7 @@ mod tests {
         
         let yaml = result.unwrap();
         if let Value::Mapping(map) = yaml {
-            assert!(map.contains_key(&Value::String("test".to_string())));
+            assert!(map.contains_key(Value::String("test".to_string())));
         } else {
             panic!("Expected YAML mapping");
         }

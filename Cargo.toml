@@ -1,6 +1,6 @@
 [package]
 name = "skeletor"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["Jason Joseph Nathan <gurugeek@geekist.co>"]
 edition = "2021"
 rust-version = "1.70"  # MSRV - Minimum Supported Rust Version
