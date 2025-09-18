@@ -38,3 +38,9 @@ path = "src/lib.rs"
 name = "library_demo"
 path = "examples/library_demo.rs"
 
+[package.metadata.release]
+pre-release-replacements = [
+  {file="CHANGELOG.md", search="Unreleased", replace="{{version}}"},
+  {file="CHANGELOG.md", search="ReleaseDate", replace="{{date}}"},
+]
+
