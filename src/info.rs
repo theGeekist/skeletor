@@ -2,17 +2,13 @@ use crate::config::default_file_path;
 use crate::errors::SkeletorError;
 use clap::ArgMatches;
 use serde_yaml::Value;
-use std::fs;
 
 /// Runs the info subcommand: prints annotation and stats information from a .skeletorrc file.
 pub fn run_info(matches: &ArgMatches) -> Result<(), SkeletorError> {
     // Use default_file_path so that .skeletorrc is used by default.
     let input_path = default_file_path(matches.get_one::<String>("config"));
 
-    let content = fs::read_to_string(&input_path)
-        .map_err(|e| SkeletorError::from_io_with_context(e, input_path.clone()))?;
-    let yaml_docs: Value = serde_yaml::from_str(&content)
-        .map_err(|e| SkeletorError::invalid_yaml(e.to_string()))?;
+    let yaml_docs: Value = crate::utils::read_yaml_file(&input_path)?;
 
     println!("Information from {:?}:", input_path);
 

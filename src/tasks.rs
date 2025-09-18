@@ -94,13 +94,6 @@ pub fn create_files_and_directories(
     );
     Ok((files_created, dirs_created))
 }
-/// Returns a string representation of a task.
-pub fn task_path(task: &Task) -> String {
-    match task {
-        Task::Dir(path) => format!("Dir: {:?}", path),
-        Task::File(path, _) => format!("File: {:?}", path),
-    }
-}
 
 pub fn traverse_directory(
     base: &Path,
@@ -137,7 +130,8 @@ pub fn traverse_directory(
         if let Some(globset) = ignore {
             if globset.is_match(&relative_str) {
                 if verbose {
-                    println!("Ignoring: {:?}", relative_str);
+                    // Use info logging for verbose ignore information
+                    info!("Ignoring: {:?}", relative_str);
                 }
                 continue;
             }
@@ -160,7 +154,8 @@ pub fn traverse_directory(
                     }
                 }
                 Err(e) => {
-                    eprintln!("Error reading file {:?}: {}", path, e);
+                    // Use warning log for file read errors instead of direct eprintln
+                    warn!("Error reading file {:?}: {}", path, e);
                 }
             }
         }
@@ -253,18 +248,6 @@ mod tests {
 
         assert!(test_dir.join("src/index.js").exists());
         assert!(test_dir.join("src/components/Header.js").exists());
-    }
-
-    #[test]
-    fn test_task_path() {
-        let dir_task = Task::Dir(PathBuf::from("src"));
-        let file_task = Task::File(
-            PathBuf::from("src/index.js"),
-            "console.log('Hello, world!');".to_string(),
-        );
-
-        assert_eq!(task_path(&dir_task), "Dir: \"src\"");
-        assert_eq!(task_path(&file_task), "File: \"src/index.js\"");
     }
 
     #[test]

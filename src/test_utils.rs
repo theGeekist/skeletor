@@ -71,6 +71,19 @@ pub mod helpers {
             full_path
         }
 
+        /// Create a binary file with given content at the specified path (relative to temp dir)
+        pub fn create_binary_file<P: AsRef<Path>>(&self, path: P, content: &[u8]) -> PathBuf {
+            let full_path = self.root_path.join(path);
+            
+            // Create parent directories if they don't exist
+            if let Some(parent) = full_path.parent() {
+                fs::create_dir_all(parent).expect("Failed to create parent directories");
+            }
+            
+            fs::write(&full_path, content).expect("Failed to write binary file");
+            full_path
+        }
+
         /// Create a directory at the specified path (relative to temp dir)
         #[allow(dead_code)]
         pub fn create_dir<P: AsRef<Path>>(&self, path: P) -> PathBuf {

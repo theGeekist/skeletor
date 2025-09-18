@@ -36,8 +36,10 @@ pub mod apply;
 pub mod config;
 pub mod errors;
 pub mod info;
+pub mod output;
 pub mod snapshot;
 pub mod tasks;
+pub mod utils;
 
 #[cfg(test)]
 pub mod test_utils;

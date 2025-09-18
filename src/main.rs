@@ -2,8 +2,10 @@ mod apply;
 mod config;
 mod errors;
 mod info;
+mod output;
 mod snapshot;
 mod tasks;
+mod utils;
 
 #[cfg(test)]
 mod test_utils;
@@ -12,13 +14,13 @@ mod test_utils;
 pub use skeletor::build_cli;
 
 use crate::apply::run_apply;
-use crate::errors::SkeletorError;
 use crate::info::run_info;
 use crate::snapshot::run_snapshot;
+use crate::errors::SkeletorError;
 use termcolor::{StandardStream, ColorChoice, Color, ColorSpec, WriteColor};
 use std::io::Write;
 
-/// Print a colored error message
+/// Displays a formatted error message to stderr
 fn print_error(message: &str) {
     let mut stderr = StandardStream::stderr(ColorChoice::Auto);
     let _ = stderr.set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true));
