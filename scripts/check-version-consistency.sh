@@ -1,6 +1,6 @@
 #!/bin/bash
 # Version Consistency Checker for Skeletor
-# This script detects version drift between Cargo.toml and source code
+# Compares latest remote git tag with top CHANGELOG.md version
 # Exit codes: 0 = consistent, 1 = drift detected, 2 = script error
 
 set -euo pipefail
@@ -19,118 +19,71 @@ print_status() {
     echo -e "${color}${message}${NC}"
 }
 
-print_status $BLUE "🔍 Checking version consistency across codebase..."
+print_status $BLUE "🔍 Checking version consistency between git tags and changelog..."
 
-# Get version from Cargo.toml
-CARGO_VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
-if [ -z "$CARGO_VERSION" ]; then
-    print_status $RED "❌ ERROR: Could not extract version from Cargo.toml"
+# Get latest remote git tag
+print_status $BLUE "📡 Fetching latest remote git tags..."
+if ! git fetch origin --tags --quiet 2>/dev/null; then
+    print_status $RED "❌ ERROR: Could not fetch remote tags"
+    print_status $RED "This check requires access to remote repository to verify actual released versions"
+    print_status $YELLOW "💡 Check your network connection and repository access"
     exit 2
 fi
 
-print_status $BLUE "📦 Cargo.toml version: $CARGO_VERSION"
-
-# Files to check for hardcoded versions (excluding documentation)
-SOURCE_FILES=(
-    "src/lib.rs"
-    "src/main.rs" 
-    "tests/integration_test.rs"
-    "CHANGELOG.md"
-)
-
-# Files to skip (documentation examples are allowed to have versions)
-SKIP_FILES=(
-    "README.md"
-    "DEVELOPMENT.md"
-    ".github/"
-)
-
-echo "🔎 Scanning for hardcoded versions in source code..."
-version_issues=false
-
-for file in "${SOURCE_FILES[@]}"; do
-    if [ -f "$file" ]; then
-        # Different patterns for different file types
-        if [[ "$file" == "CHANGELOG.md" ]]; then
-            # For CHANGELOG.md, we primarily rely on automation marker checks
-            # Version numbers are expected in changelog history
-            # Only flag obvious manual current version interference  
-            hardcoded_versions=""
-        else
-            # For source files, look for hardcoded version strings  
-            hardcoded_versions=$(grep -E "\b$CARGO_VERSION\b" "$file" | grep -v "env!" || true)
-        fi
-        
-        if [ -n "$hardcoded_versions" ]; then
-            echo "❌ $file: Found hardcoded version $CARGO_VERSION:"
-            echo "$hardcoded_versions" | sed 's/^/   /'
-            version_issues=true
-        else
-            echo "✅ $file: No hardcoded versions found"
-        fi
-    fi
-done
-
-# Special handling for CHANGELOG.md automation markers
-if [ -f "CHANGELOG.md" ]; then
-    echo "🔧 Verifying CHANGELOG.md automation markers..."
-    if ! grep -q "<!-- next-header -->" "CHANGELOG.md"; then
-        echo "❌ CHANGELOG.md: Missing <!-- next-header --> marker for cargo-release automation"
-        version_issues=true
-    fi
-    if ! grep -q "<!-- next-url -->" "CHANGELOG.md"; then
-        echo "❌ CHANGELOG.md: Missing <!-- next-url --> marker for cargo-release automation"
-        version_issues=true
-    fi
-    if grep -q "<!-- next-header -->" "CHANGELOG.md" && grep -q "<!-- next-url -->" "CHANGELOG.md"; then
-        echo "✅ CHANGELOG.md: Automation markers present for cargo-release"
-    fi
+LATEST_TAG=$(git tag -l 'v0.*.*' | sort -V | tail -n1)
+if [ -z "$LATEST_TAG" ]; then
+    print_status $RED "❌ ERROR: No v0.*.* version tags found"
+    exit 2
 fi
 
-DRIFT_DETECTED=$version_issues
+# Remove 'v' prefix to get version number
+LATEST_VERSION=${LATEST_TAG#v}
+print_status $BLUE "🏷️  Latest v0.x.x git tag: $LATEST_TAG (version: $LATEST_VERSION)"
 
-echo ""
-echo "📄 README.md: Skipped (documentation examples allowed)"
-
-echo ""
-echo "🔧 Verifying lib.rs uses automatic versioning..."
-
-if grep -q 'env!("CARGO_PKG_VERSION")' src/lib.rs; then
-    echo "✅ lib.rs correctly uses env!(\"CARGO_PKG_VERSION\")"
-else
-    echo "❌ lib.rs does not use env!(\"CARGO_PKG_VERSION\") for version"
-    DRIFT_DETECTED=true
+# Extract top version from CHANGELOG.md (first version after Unreleased section)
+if [ ! -f "CHANGELOG.md" ]; then
+    print_status $RED "❌ ERROR: CHANGELOG.md not found"
+    exit 2
 fi
 
-# Check integration test uses automatic versioning
-if grep -q 'env!("CARGO_PKG_VERSION")' tests/integration_test.rs; then
-    echo "✅ integration_test.rs correctly uses env!(\"CARGO_PKG_VERSION\")"
-else
-    echo "❌ integration_test.rs does not use env!(\"CARGO_PKG_VERSION\") for version"
-    DRIFT_DETECTED=true
+# Find the first version line after "## [Unreleased] - ReleaseDate"
+CHANGELOG_VERSION=$(awk '
+    /^## \[Unreleased\] - ReleaseDate/ { found_unreleased = 1; next }
+    found_unreleased && /^## \[[0-9]+\.[0-9]+\.[0-9]+\]/ { 
+        gsub(/^## \[/, ""); 
+        gsub(/\].*/, ""); 
+        print; 
+        exit 
+    }
+' CHANGELOG.md)
+
+if [ -z "$CHANGELOG_VERSION" ]; then
+    print_status $RED "❌ ERROR: Could not find version in CHANGELOG.md after ## [Unreleased] section"
+    exit 2
 fi
 
-# Final report
+print_status $BLUE "📄 CHANGELOG.md top version: $CHANGELOG_VERSION"
+
+# Compare versions
 echo ""
-echo "📊 Version Consistency Report"
+print_status $BLUE "📊 Version Consistency Report"
 echo "=============================="
 
-if [ "$DRIFT_DETECTED" = true ]; then
-    echo "❌ VERSION DRIFT DETECTED!"
-    echo ""
-    echo "🚨 CRITICAL: Manual version changes found in source code"
-    echo "💡 Resolution steps:"
-    echo "   1. Remove all hardcoded version numbers from source files"
-    echo "   2. Use env!(\"CARGO_PKG_VERSION\") macro for automatic version sync"
-    echo "   3. Update only Cargo.toml version (single source of truth)"
-    echo "   4. For CHANGELOG.md, ensure cargo-release automation markers are present"
-    echo "   5. Re-run this check to verify fixes"
-    echo ""
-    echo "🛑 Blocking commit/release to prevent version inconsistency"
-    exit 1
-else
-    echo "✅ ALL VERSION CHECKS PASSED"
-    echo "🎯 Version consistency verified: $CARGO_VERSION"
-    echo "🚀 Safe to proceed with commit/release"
+if [ "$LATEST_VERSION" = "$CHANGELOG_VERSION" ]; then
+    print_status $GREEN "✅ VERSIONS MATCH!"
+    print_status $GREEN "🎯 CHANGELOG.md shows $CHANGELOG_VERSION as latest released (matches git tag v$LATEST_VERSION)"
+    print_status $GREEN "🚀 Safe to proceed with commit/release"
     exit 0
+else
+    print_status $RED "❌ VERSION MISMATCH DETECTED!"
+    echo ""
+    print_status $RED "Expected latest version $LATEST_VERSION after Unreleased. Found $CHANGELOG_VERSION"
+    echo ""
+    print_status $YELLOW "💡 Resolution steps:"
+    echo "   1. CHANGELOG.md should show the latest released version ($LATEST_VERSION) as topmost"
+    echo "   2. Ensure git tag v$LATEST_VERSION exists and matches changelog"
+    echo "   3. Run 'cargo release' to properly synchronize versions"
+    echo ""
+    print_status $RED "🛑 Blocking commit/release due to version inconsistency"
+    exit 1
 fi
