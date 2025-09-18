@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
-## [0.3.4] - ReleaseDate
+## [0.3.4] - 2025-09-18
 
 ### Added
 - **Critical Safety Protocols**: Comprehensive protection against dangerous operations
