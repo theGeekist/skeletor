@@ -7,7 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-header -->
 
-## [Unreleased] - ReleaseDate
+## [Unreleased] - 2025-09-18
+
+### Fixed
+- **Release Pipeline**: Resolved version conflict preventing package publication
+  - Package version 0.3.4 already existed, requiring patch increment to 0.3.5
+  - Fixed CI failures due to duplicate version publishing attempts
 
 ## [0.3.4] - 2025-09-18
 
