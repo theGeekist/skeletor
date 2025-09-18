@@ -31,43 +31,43 @@ jobs:
         run: |
           mkdir -p Formula
           cat > Formula/skeletor.rb <<'RUBY'
-class Skeletor < Formula
-  desc "Two-way scaffolding CLI (apply + snapshot)"
-  homepage "https://github.com/__OWNER__/__REPO__"
-  license "MIT"
-
-  on_macos do
-    on_arm do
-      url "https://github.com/__OWNER__/__REPO__/releases/download/__TAG__/skeletor-macos-aarch64-apple-darwin.tar.gz"
-      sha256 "__MAC_ARM__"
-    end
-    on_intel do
-      url "https://github.com/__OWNER__/__REPO__/releases/download/__TAG__/skeletor-macos-x86_64-apple-darwin.tar.gz"
-      sha256 "__MAC_X64__"
-    end
-  end
-
-  on_linux do
-    on_intel do
-      url "https://github.com/__OWNER__/__REPO__/releases/download/__TAG__/skeletor-ubuntu-x86_64-unknown-linux-gnu.tar.gz"
-      sha256 "__LNX_X64__"
-    end
-  end
-
-  def install
-    bin.install "skeletor"
-  end
-
-  test do
-    assert_match "skeletor", shell_output("#{bin}/skeletor --help")
-  end
-
-  livecheck do
-    url :stable
-    strategy :github_latest
-  end
-end
-RUBY
+          class Skeletor < Formula
+            desc "Two-way scaffolding CLI (apply + snapshot)"
+            homepage "https://github.com/__OWNER__/__REPO__"
+            license "MIT"
+          
+            on_macos do
+              on_arm do
+                url "https://github.com/__OWNER__/__REPO__/releases/download/__TAG__/skeletor-macos-aarch64-apple-darwin.tar.gz"
+                sha256 "__MAC_ARM__"
+              end
+              on_intel do
+                url "https://github.com/__OWNER__/__REPO__/releases/download/__TAG__/skeletor-macos-x86_64-apple-darwin.tar.gz"
+                sha256 "__MAC_X64__"
+              end
+            end
+          
+            on_linux do
+              on_intel do
+                url "https://github.com/__OWNER__/__REPO__/releases/download/__TAG__/skeletor-ubuntu-x86_64-unknown-linux-gnu.tar.gz"
+                sha256 "__LNX_X64__"
+              end
+            end
+          
+            def install
+              bin.install "skeletor"
+            end
+          
+            test do
+              assert_match "skeletor", shell_output("#{bin}/skeletor --help")
+            end
+          
+            livecheck do
+              url :stable
+              strategy :github_latest
+            end
+          end
+          RUBY
           sed -i "s|__OWNER__|${{ inputs.src_owner }}|g" Formula/skeletor.rb
           sed -i "s|__REPO__|${{ inputs.src_repo }}|g" Formula/skeletor.rb
           sed -i "s|__TAG__|${{ inputs.tag }}|g" Formula/skeletor.rb
