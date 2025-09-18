@@ -51,11 +51,44 @@ directories:
     fs::write(&config_file, config_content).unwrap();
     
     // Run apply from temp directory so files are created there
-    let binary_path = std::env::current_dir().unwrap().join("target/debug/skeletor");
+    // Find the skeletor binary - try common locations for different environments
+    let project_root = std::env::current_dir().unwrap();
+    let mut binary_path = project_root.join("target/debug/skeletor");
     
-    // Ensure binary exists before trying to run it
+    // Try different possible binary locations
     if !binary_path.exists() {
-        panic!("Skeletor binary not found at {:?}. Run 'cargo build' first.", binary_path);
+        binary_path = project_root.join("target/debug/skeletor.exe"); // Windows
+    }
+    if !binary_path.exists() {
+        binary_path = project_root.join("target/release/skeletor"); // Release mode
+    }
+    if !binary_path.exists() {
+        binary_path = project_root.join("target/release/skeletor.exe"); // Windows release
+    }
+    
+    // If binary still not found, try using env var or build it
+    if !binary_path.exists() {
+        // Last resort: try to build and run with cargo
+        let build_output = Command::new("cargo")
+            .args(&["build", "--bin", "skeletor"])
+            .current_dir(&project_root)
+            .output()
+            .expect("Failed to run cargo build");
+            
+        if !build_output.status.success() {
+            panic!("Failed to build skeletor binary: {}", 
+                   String::from_utf8_lossy(&build_output.stderr));
+        }
+        
+        // Try to find binary again after build
+        binary_path = project_root.join("target/debug/skeletor");
+        if !binary_path.exists() {
+            binary_path = project_root.join("target/debug/skeletor.exe");
+        }
+        
+        if !binary_path.exists() {
+            panic!("Could not find skeletor binary even after building. Tried:\n- target/debug/skeletor\n- target/debug/skeletor.exe\n- target/release/skeletor\n- target/release/skeletor.exe");
+        }
     }
     
     let output = Command::new(&binary_path)

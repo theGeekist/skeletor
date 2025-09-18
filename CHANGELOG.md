@@ -9,9 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
-## [0.3.3] - ReleaseDate
+### Added
+- **Critical Safety Protocols**: Comprehensive protection against dangerous operations
+  - **Mandatory Testing Directory**: `_ops/` directory for ALL skeletor testing operations
+  - **Workspace Protection Rules**: NEVER operate in project root, always use isolated testing environments
+  - **Safety Documentation**: Comprehensive safety guide in `_ops/README.md` with emergency protocols
+  - **Forbidden Operations List**: Explicit guidelines to prevent catastrophic data loss
+  - **GitIgnore Protection**: Safe testing directory configuration to prevent accidental commits
 
-## [0.3.2] - ReleaseDate
+### Fixed
+- **CI Integration Test Failures**: Resolved "No such file or directory" errors in CI environments
+  - **Robust Binary Discovery**: Multi-location binary detection for diverse CI environments
+  - **Cross-Platform Support**: Windows (.exe) and Unix binary detection
+  - **Fallback Build System**: Automatic cargo build when binary not found
+  - **Enhanced Error Reporting**: Clear troubleshooting messages for CI failures
+- **Dead Code Warnings**: Resolved compiler warnings for clean releases
+  - **SilentReporter Warning**: Added `#[allow(dead_code)]` for public API structure
+  - **Clippy Compliance**: Fixed needless borrows and formatting issues
+- **Release Pipeline Stability**: All 158 tests passing across Linux/Windows/macOS environments
+
+## [0.3.2] - 2024-12-19
 
 ### Added
 - **Enhanced Dry-Run Reporting**: Comprehensive preview functionality with professional formatting
