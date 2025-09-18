@@ -526,7 +526,7 @@ mod tests {
 
         // Create an existing output file with a "created" timestamp.
         fs::write(
-            &output_file,
+            output_file,
             r#"
 created: "2020-01-01T00:00:00Z"
 updated: "2020-01-02T00:00:00Z"
