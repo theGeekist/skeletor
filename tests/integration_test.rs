@@ -70,7 +70,7 @@ directories:
     if !binary_path.exists() {
         // Last resort: try to build and run with cargo
         let build_output = Command::new("cargo")
-            .args(&["build", "--bin", "skeletor"])
+            .args(["build", "--bin", "skeletor"])
             .current_dir(&project_root)
             .output()
             .expect("Failed to run cargo build");
