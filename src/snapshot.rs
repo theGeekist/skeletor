@@ -1,26 +1,16 @@
 use crate::config::{default_file_path, read_config};
 use crate::errors::SkeletorError;
-use crate::tasks::{compute_stats, traverse_directory};
+use crate::output::{DefaultReporter, SimpleSnapshotResult, Reporter};
+use crate::tasks::{compute_stats, traverse_directory, Task};
 use chrono::Utc;
 use clap::ArgMatches;
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use log::info;
 use serde_yaml::{Mapping, Value};
+#[cfg(test)]
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
-use termcolor::{StandardStream, ColorChoice, Color, ColorSpec, WriteColor};
-use std::io::Write;
-
-/// Helper function to print colored timing information with standardized formatting
-fn print_colored_duration(prefix: &str, duration: std::time::Duration) {
-    let mut stdout = StandardStream::stdout(ColorChoice::Auto);
-    print!("{}", prefix);
-    let _ = stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)).set_bold(true));
-    let _ = write!(stdout, "{:.2}ms", duration.as_micros() as f64 / 1000.0);
-    let _ = stdout.reset();
-    println!();
-}
 
 /// Configuration for snapshot command extracted from CLI arguments
 struct SnapshotConfig {
@@ -56,7 +46,8 @@ fn prepare_verbose_info(ignore_patterns: &[String], verbose: bool) -> Vec<String
             }
         }
     } else if !ignore_patterns.is_empty() {
-        println!("Using {} ignore pattern(s)", ignore_patterns.len());
+        // Add ignore pattern count to verbose info for non-verbose mode
+        verbose_info.push(format!("Using {} ignore pattern(s)", ignore_patterns.len()));
     }
     verbose_info
 }
@@ -86,15 +77,31 @@ pub fn run_snapshot(matches: &ArgMatches) -> Result<(), SkeletorError> {
     let snapshot = build_snapshot(
         &config.output_path,
         config.user_note,
-        dir_snapshot,
-        binary_files,
+        dir_snapshot.clone(), // Clone to avoid borrow issues with dry-run
+        binary_files.clone(),
         files_count,
         dirs_count,
     )?;
 
     let duration = start_time.elapsed();
-    write_snapshot(snapshot, &config.output_path, config.dry_run, verbose_info)?;
-    print_colored_duration("Snapshot generated in ", duration);
+    let reporter = DefaultReporter::new();
+    
+    if config.dry_run {
+        // Use Reporter system for consistent dry-run formatting
+        display_snapshot_dry_run_comprehensive(&dir_snapshot, config.verbose, &binary_files, &ignore_patterns)?;
+    } else {
+        write_snapshot_with_reporter(snapshot, &config.output_path, verbose_info)?;
+        
+        let snapshot_result = SimpleSnapshotResult {
+            files_processed: files_count,
+            dirs_processed: dirs_count,
+            duration,
+            output_path: config.output_path,
+            binary_files_excluded: binary_files.len(),
+            binary_files_list: binary_files,
+        };
+        reporter.snapshot_complete(&snapshot_result);
+    }
     
     Ok(())
 }
@@ -108,8 +115,7 @@ fn collect_ignore_patterns(matches: &ArgMatches) -> Result<Vec<String>, Skeletor
             let candidate = Path::new(val);
             if candidate.exists() && candidate.is_file() {
                 // Read file (e.g., `.gitignore`) and add valid patterns
-                let content = fs::read_to_string(candidate)
-                    .map_err(|e| SkeletorError::from_io_with_context(e, candidate.to_path_buf()))?;
+                let content = crate::utils::read_file_to_string(candidate)?;
                 for line in content.lines() {
                     let trimmed = line.trim();
                     if !trimmed.is_empty() && !trimmed.starts_with('#') {
@@ -125,7 +131,7 @@ fn collect_ignore_patterns(matches: &ArgMatches) -> Result<Vec<String>, Skeletor
     Ok(ignore_patterns)
 }
 
-fn build_globset(ignore_patterns: &[String], verbose: bool) -> Result<Option<GlobSet>, SkeletorError> {
+fn build_globset(ignore_patterns: &[String], _verbose: bool) -> Result<Option<GlobSet>, SkeletorError> {
     if ignore_patterns.is_empty() {
         return Ok(None);
     }
@@ -135,9 +141,6 @@ fn build_globset(ignore_patterns: &[String], verbose: bool) -> Result<Option<Glo
         let normalized_pattern = pat.trim().to_string();
         match Glob::new(&normalized_pattern) {
             Ok(glob) => {
-                if verbose {
-                    println!("Added ignore pattern: {}", normalized_pattern);
-                }
                 builder.add(glob);
             }
             Err(e) => {
@@ -220,37 +223,84 @@ fn build_snapshot(
     Ok(Value::Mapping(top_map))
 }
 
-/// Writes the snapshot to disk or prints it for dry-run mode.
-fn write_snapshot(snapshot: Value, output_path: &Path, dry_run: bool, verbose_info: Vec<String>) -> Result<(), SkeletorError> {
-    let out_str =
-        serde_yaml::to_string(&snapshot).map_err(|e| SkeletorError::Config(e.to_string()))?;
-
-    if dry_run {
-        // For snapshot, always show the full YAML content as it's typically readable
-        // The verbose flag controls additional metadata display
-        println!("Dry run enabled. The following snapshot would be generated:");
-        println!("{}", out_str);
-        
-        // Display verbose information at the end only if verbose
-        if !verbose_info.is_empty() {
-            println!("Verbose Information:");
-            for info in verbose_info {
-                println!("{}", info);
-            }
+/// Displays snapshot dry run output using professional formatting
+#[allow(dead_code)]
+fn display_snapshot_dry_run(snapshot: &Value, verbose_info: Vec<String>) -> Result<(), SkeletorError> {
+    let out_str = serde_yaml::to_string(snapshot).map_err(|e| SkeletorError::Config(e.to_string()))?;
+    
+    // Simple, clean dry run output like v0.3.1
+    println!("Dry run enabled. The following snapshot would be generated:");
+    println!("{}", out_str);
+    
+    // Display verbose information if available
+    if !verbose_info.is_empty() {
+        for info in verbose_info {
+            println!("{}", info);
         }
-    } else {
-        fs::write(output_path, out_str)
-            .map_err(|e| SkeletorError::from_io_with_context(e, output_path.to_path_buf()))?;
-        println!("Snapshot written to {:?}", output_path);
-        
-        // Display verbose information at the end for non-dry-run too
-        if !verbose_info.is_empty() {
-            for info in verbose_info {
-                println!("{}", info);
+    }
+    
+    Ok(())
+}
+
+/// Convert snapshot directory structure to list of operations (tasks)
+fn snapshot_to_operations(dir_snapshot: &Value, base_path: &str) -> Vec<Task> {
+    let mut operations = Vec::new();
+    
+    if let Some(mapping) = dir_snapshot.as_mapping() {
+        for (key, value) in mapping {
+            if let Some(name) = key.as_str() {
+                let path = if base_path.is_empty() {
+                    format!("./{}", name)
+                } else {
+                    format!("{}/{}", base_path, name)
+                };
+                
+                if value.as_mapping().is_some() {
+                    // This is a directory
+                    operations.push(Task::Dir(path.clone().into()));
+                    // Recursively process subdirectories and files
+                    operations.extend(snapshot_to_operations(value, &path));
+                } else if let Some(_content) = value.as_str() {
+                    // This is a file
+                    operations.push(Task::File(path.into(), "".to_string()));
+                }
             }
         }
     }
+    
+    operations
+}
 
+/// Displays comprehensive snapshot dry run using Reporter system for consistency
+fn display_snapshot_dry_run_comprehensive(
+    dir_snapshot: &Value, 
+    verbose: bool, 
+    binary_files: &[String], 
+    ignore_patterns: &[String]
+) -> Result<(), SkeletorError> {
+    // Convert snapshot structure to operations for consistent display
+    let operations = snapshot_to_operations(dir_snapshot, "");
+    
+    // Use the Reporter system for consistent formatting
+    let reporter = DefaultReporter::new();
+    reporter.dry_run_preview_comprehensive(&operations, verbose, binary_files, ignore_patterns, "captured");
+    
+    Ok(())
+}
+
+/// Writes snapshot to disk - output handled by Reporter system
+fn write_snapshot_with_reporter(snapshot: Value, output_path: &Path, verbose_info: Vec<String>) -> Result<(), SkeletorError> {
+    let out_str = serde_yaml::to_string(&snapshot).map_err(|e| SkeletorError::Config(e.to_string()))?;
+    
+    crate::utils::write_string_to_file(output_path, &out_str)?;
+    
+    // Verbose information display (if needed)
+    if !verbose_info.is_empty() {
+        for info in verbose_info {
+            println!("{}", info);
+        }
+    }
+    
     Ok(())
 }
 
@@ -259,21 +309,18 @@ mod tests {
     use std::panic;
 
     use super::*;
-    use tempfile::tempdir;
+    use crate::test_utils::helpers::*;
 
     #[test]
     fn test_snapshot_directory_without_contents() {
-        let temp_dir = tempdir().unwrap();
-        let test_dir = temp_dir.path();
+        let fs = TestFileSystem::new();
 
         // Create a simple structure with a hidden file and a regular file.
-        let src = test_dir.join("src");
-        fs::create_dir(&src).unwrap();
-        fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
+        fs.create_file("src/index.js", "console.log('Hello');");
         // Hidden file should be included.
-        fs::write(src.join(".hidden.txt"), "secret").unwrap();
+        fs.create_file("src/.hidden.txt", "secret");
 
-        let (yaml_structure, binaries) = traverse_directory(test_dir, false, None, false).unwrap();
+        let (yaml_structure, binaries) = traverse_directory(&fs.root_path, false, None, false).unwrap();
 
         if let Value::Mapping(map) = yaml_structure {
             // Expect "src" key exists.
@@ -287,17 +334,14 @@ mod tests {
 
     #[test]
     fn test_snapshot_directory_with_contents() {
-        let temp_dir = tempdir().unwrap();
-        let test_dir = temp_dir.path();
+        let fs = TestFileSystem::new();
 
         // Create a simple structure with a hidden file and a regular file.
-        let src = test_dir.join("src");
-        fs::create_dir(&src).unwrap();
-        fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
+        fs.create_file("src/index.js", "console.log('Hello');");
         // Hidden file should be included.
-        fs::write(src.join(".hidden.txt"), "secret").unwrap();
+        fs.create_file("src/.hidden.txt", "secret");
 
-        let (yaml_structure, binaries) = traverse_directory(test_dir, true, None, false).unwrap();
+        let (yaml_structure, binaries) = traverse_directory(&fs.root_path, true, None, false).unwrap();
 
         if let Value::Mapping(map) = yaml_structure {
             // Expect "src" key exists.
@@ -329,17 +373,14 @@ mod tests {
 
     #[test]
     fn test_traverse_directory() {
-        let temp_dir = tempdir().unwrap();
-        let test_dir = temp_dir.path();
+        let fs = TestFileSystem::new();
 
         // Create a simple structure with a hidden file and a regular file.
-        let src = test_dir.join("src");
-        fs::create_dir(&src).unwrap();
-        fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
+        fs.create_file("src/index.js", "console.log('Hello');");
         // Hidden file should be included.
-        fs::write(src.join(".hidden.txt"), "secret").unwrap();
+        fs.create_file("src/.hidden.txt", "secret");
 
-        let (yaml_structure, binaries) = traverse_directory(test_dir, false, None, false).unwrap();
+        let (yaml_structure, binaries) = traverse_directory(&fs.root_path, false, None, false).unwrap();
 
         if let Value::Mapping(map) = yaml_structure {
             // Expect "src" key exists.
@@ -353,15 +394,15 @@ mod tests {
 
     #[test]
     fn test_run_snapshot_with_dry_run() {
-        let temp_dir = tempdir().unwrap();
-        let test_dir = temp_dir.path();
+        let fs = TestFileSystem::new();
+        
 
         // Create a simple structure.
-        let src = test_dir.join("src");
-        fs::create_dir(&src).unwrap();
-        fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
+        // Create src directory via TestFileSystem helper
+        // Directory created by fs.create_file
+        fs.create_file("src/index.js", "console.log('Hello');");
 
-        let args = vec![test_dir.to_str().unwrap(), "--dry-run"];
+        let args = vec![&fs.root_path.to_str().unwrap(), "--dry-run"];
 
         if let Some(sub_m) = crate::test_utils::helpers::create_snapshot_matches(args) {
             let result = run_snapshot(&sub_m);
@@ -373,17 +414,17 @@ mod tests {
 
     #[test]
     fn test_run_snapshot_with_output() {
-        let temp_dir = tempdir().unwrap();
-        let test_dir = temp_dir.path();
-        let output_file = temp_dir.path().join("output.yaml");
+        let fs = TestFileSystem::new();
+        
+        let output_file = &fs.root_path.join("output.yaml");
 
         // Create a simple structure.
-        let src = test_dir.join("src");
-        fs::create_dir(&src).unwrap();
-        fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
+        // Create src directory via TestFileSystem helper
+        // Directory created by fs.create_file
+        fs.create_file("src/index.js", "console.log('Hello');");
 
         let args = vec![
-            test_dir.to_str().unwrap(),
+            &fs.root_path.to_str().unwrap(),
             "--output",
             output_file.to_str().unwrap(),
         ];
@@ -399,20 +440,19 @@ mod tests {
 
     #[test]
     fn test_run_snapshot_with_ignore_patterns() {
-        let temp_dir = tempdir().unwrap();
-        let test_dir = temp_dir.path();
+        let fs = TestFileSystem::new();
+        
 
         // Create a simple structure.
-        let src = test_dir.join("src");
-        fs::create_dir(&src).unwrap();
-        fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
-        fs::write(src.join("ignore.txt"), "ignore me").unwrap();
+        // Create src directory via TestFileSystem helper
+        // Directory created by fs.create_file
+        fs.create_file("src/index.js", "console.log('Hello');");
+        fs.create_file("src/ignore.txt", "ignore me");
 
-        let ignore_file = temp_dir.path().join("ignore_patterns.txt");
-        fs::write(&ignore_file, "ignore.txt").unwrap();
+        let ignore_file = fs.create_file("ignore_patterns.txt", "ignore.txt");
 
         let args = vec![
-            test_dir.to_str().unwrap(),
+            &fs.root_path.to_str().unwrap(),
             "--ignore",
             ignore_file.to_str().unwrap(),
         ];
@@ -425,16 +465,16 @@ mod tests {
     }
     #[test]
     fn test_run_snapshot_with_binary_files() {
-        let temp_dir = tempdir().unwrap();
-        let test_dir = temp_dir.path();
+        let fs = TestFileSystem::new();
+        
 
         // Create a simple structure with a binary file.
-        let src = test_dir.join("src");
-        fs::create_dir(&src).unwrap();
-        fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
-        fs::write(src.join("binary.bin"), [0, 159, 146, 150]).unwrap();
+        // Create src directory via TestFileSystem helper
+        // Directory created by fs.create_file
+        fs.create_file("src/index.js", "console.log('Hello');");
+        fs.create_binary_file("src/binary.bin", &[0, 159, 146, 150]);
 
-        let args = vec![test_dir.to_str().unwrap()];
+        let args = vec![fs.root_path.to_str().unwrap()];
         if let Some(sub_m) = crate::test_utils::helpers::create_snapshot_matches(args) {
             let result = run_snapshot(&sub_m);
             assert!(result.is_ok(), "run_snapshot failed: {:?}", result);
@@ -444,17 +484,17 @@ mod tests {
     }
     #[test]
     fn test_run_snapshot_with_notes() {
-        let temp_dir = tempdir().unwrap();
-        let test_dir = temp_dir.path();
-        let output_file = temp_dir.path().join("output.yaml");
+        let fs = TestFileSystem::new();
+        
+        let output_file = &fs.root_path.join("output.yaml");
 
         // Create a simple structure.
-        let src = test_dir.join("src");
-        fs::create_dir(&src).unwrap();
-        fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
+        // Create src directory via TestFileSystem helper
+        // Directory created by fs.create_file
+        fs.create_file("src/index.js", "console.log('Hello');");
 
         let args = vec![
-            test_dir.to_str().unwrap(),
+            &fs.root_path.to_str().unwrap(),
             "--output",
             output_file.to_str().unwrap(),
             "--note",
@@ -475,14 +515,14 @@ mod tests {
 
     #[test]
     fn test_run_snapshot_with_existing_output_file() {
-        let temp_dir = tempdir().unwrap();
-        let test_dir = temp_dir.path();
-        let output_file = temp_dir.path().join("output.yaml");
+        let fs = TestFileSystem::new();
+        
+        let output_file = &fs.root_path.join("output.yaml");
 
         // Create a simple structure.
-        let src = test_dir.join("src");
-        fs::create_dir(&src).unwrap();
-        fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
+        // Create src directory via TestFileSystem helper
+        // Directory created by fs.create_file
+        fs.create_file("src/index.js", "console.log('Hello');");
 
         // Create an existing output file with a "created" timestamp.
         fs::write(
@@ -499,7 +539,7 @@ src:
         .unwrap();
 
         let args = vec![
-            test_dir.to_str().unwrap(),
+            &fs.root_path.to_str().unwrap(),
             "--output",
             output_file.to_str().unwrap(),
         ];
@@ -513,15 +553,15 @@ src:
 
     #[test]
     fn test_run_snapshot_with_final_println() {
-        let temp_dir = tempdir().unwrap();
-        let test_dir = temp_dir.path();
+        let fs = TestFileSystem::new();
+        
 
         // Create a simple structure.
-        let src = test_dir.join("src");
-        fs::create_dir(&src).unwrap();
-        fs::write(src.join("index.js"), "console.log('Hello');").unwrap();
+        // Create src directory via TestFileSystem helper
+        // Directory created by fs.create_file
+        fs.create_file("src/index.js", "console.log('Hello');");
 
-        let args = vec![test_dir.to_str().unwrap()];
+        let args = vec![fs.root_path.to_str().unwrap()];
         if let Some(sub_m) = crate::test_utils::helpers::create_snapshot_matches(args) {
             let result = run_snapshot(&sub_m);
             assert!(result.is_ok(), "run_snapshot failed: {:?}", result);

@@ -154,7 +154,7 @@ stats:
             String::from_utf8_lossy(&output.stderr));
     
     let stdout = String::from_utf8(output.stdout).unwrap();
-    assert!(stdout.contains("Created:"));
+    assert!(stdout.contains("Created:"), "Expected 'Created:' in output: {}", stdout);
     assert!(stdout.contains("2024-01-01"));
 }
 

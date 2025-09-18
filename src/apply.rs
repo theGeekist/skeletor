@@ -1,95 +1,45 @@
 use crate::config::{default_file_path, read_config};
 use crate::errors::SkeletorError;
-use crate::tasks::{create_files_and_directories, task_path, traverse_structure, Task};
+use crate::output::{DefaultReporter, Reporter, SimpleApplyResult};
+use crate::tasks::{create_files_and_directories, traverse_structure, Task};
 use clap::ArgMatches;
 use log::info;
+use serde_yaml::Value;
 use std::path::Path;
 use std::time::Instant;
-use termcolor::{StandardStream, ColorChoice, Color, ColorSpec, WriteColor};
-use std::io::Write;
 
-/// Helper function to print colored timing information with standardized formatting
-fn print_colored_duration(prefix: &str, duration: std::time::Duration) {
-    let mut stdout = StandardStream::stdout(ColorChoice::Auto);
-    print!("{}", prefix);
-    let _ = stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)).set_bold(true));
-    let _ = write!(stdout, "{:.2}ms", duration.as_micros() as f64 / 1000.0);
-    let _ = stdout.reset();
-    println!();
-}
-
-/// Counts files and directories in a task list
-fn count_tasks(tasks: &[Task]) -> (usize, usize) {
-    let mut file_count = 0;
-    let mut dir_count = 0;
-    for task in tasks.iter() {
-        match task {
-            Task::File { .. } => file_count += 1,
-            Task::Dir { .. } => dir_count += 1,
+/// Extract binary files list from YAML if present
+fn extract_binary_files_from_yaml(yaml_config: &Value) -> Vec<String> {
+    if let Some(binary_files) = yaml_config.get("binary_files") {
+        if let Some(array) = binary_files.as_sequence() {
+            return array
+                .iter()
+                .filter_map(|v| v.as_str())
+                .map(|s| s.to_string())
+                .collect();
         }
     }
-    (file_count, dir_count)
+    Vec::new()
 }
 
-/// Handles dry-run output display with verbose and summary modes
-fn display_dry_run_output(tasks: &[Task], verbose: bool) {
-    let (file_count, dir_count) = count_tasks(tasks);
-    
-    if verbose {
-        // Verbose mode: Full listing for debugging (prettier format)
-        println!("Dry run enabled. Detailed operation listing:");
-        println!("════════════════════════════════════════");
-        
-        let mut dir_counter = 0;
-        let mut file_counter = 0;
-        
-        for task in tasks.iter() {
-            match task {
-                Task::Dir { .. } => {
-                    dir_counter += 1;
-                    print!("📁 [{:4}] ", dir_counter);
-                    println!("{}", task_path(task));
-                }
-                Task::File { .. } => {
-                    file_counter += 1;
-                    print!("📄 [{:4}] ", file_counter);
-                    println!("{}", task_path(task));
-                }
-            }
-        }
-        
-        println!("════════════════════════════════════════");
-        println!("Summary: {} directories, {} files ({} total operations)", dir_count, file_count, tasks.len());
-    } else {
-        // Default mode: Clean summary
-        println!("Dry run enabled. Summary of planned operations:");
-        println!("  • {} files to be created", file_count);
-        println!("  • {} directories to be created", dir_count);
-        println!("  • Total: {} operations", tasks.len());
-        
-        // Show a sample of what would be created (first 5 items)
-        if !tasks.is_empty() {
-            println!("\nSample of operations:");
-            for (i, task) in tasks.iter().take(5).enumerate() {
-                match task {
-                    Task::Dir(_) => {
-                        print!("  {}. 📁 ", i + 1);
-                        println!("{}", task_path(task));
-                    },
-                    Task::File(_, _) => {
-                        print!("  {}. 📄 ", i + 1);
-                        println!("{}", task_path(task));
-                    },
-                }
-            }
-            if tasks.len() > 5 {
-                println!("  ... and {} more operations", tasks.len() - 5);
-            }
-            println!("\ntip: Use --verbose to see the complete operation list");
+/// Extract ignore patterns from YAML if present
+fn extract_ignore_patterns_from_yaml(yaml_config: &Value) -> Vec<String> {
+    if let Some(ignore_patterns) = yaml_config.get("ignore_patterns") {
+        if let Some(array) = ignore_patterns.as_sequence() {
+            return array
+                .iter()
+                .filter_map(|v| v.as_str())
+                .map(|s| s.to_string())
+                .collect();
         }
     }
-    
-    println!("\nDry run complete. No changes were made.");
+    Vec::new()
+}
+
+/// Handles dry-run output display using the Reporter system for consistent formatting
+fn display_dry_run_output(tasks: &[Task], verbose: bool, binary_files: &[String], ignore_patterns: &[String]) {
+    let reporter = DefaultReporter::new();
+            reporter.dry_run_preview_comprehensive(tasks, verbose, binary_files, ignore_patterns, "applied");
 }
 
 /// Parses CLI arguments and extracts apply-specific configuration
@@ -119,9 +69,10 @@ pub fn run_apply(matches: &ArgMatches) -> Result<(), SkeletorError> {
     info!("Reading input file: {:?}", config.input_path);
     info!("Overwrite flag: {:?}", config.overwrite);
 
-    // Add debug output to print the input path
-    println!("Input path: {:?}", config.input_path);
-
+    // Read the full YAML document to access binary_files and ignore_patterns
+    let full_yaml_doc: Value = crate::utils::read_yaml_file(&config.input_path)?;
+    
+    // Extract directories section for processing
     let yaml_config = read_config(&config.input_path)?;
 
     if yaml_config.is_null() {
@@ -132,13 +83,35 @@ pub fn run_apply(matches: &ArgMatches) -> Result<(), SkeletorError> {
 
     let start_time = Instant::now();
     let tasks = traverse_structure(Path::new("."), &yaml_config);
+    
+    // Extract binary files and ignore patterns from the full YAML document
+    let binary_files = extract_binary_files_from_yaml(&full_yaml_doc);
+    let ignore_patterns = extract_ignore_patterns_from_yaml(&full_yaml_doc);
+    
+    info!("Extracted {} binary files: {:?}", binary_files.len(), binary_files);
+    info!("Extracted {} ignore patterns: {:?}", ignore_patterns.len(), ignore_patterns);
 
     if config.dry_run {
-        display_dry_run_output(&tasks, config.verbose);
+        display_dry_run_output(&tasks, config.verbose, &binary_files, &ignore_patterns);
     } else {
-        create_files_and_directories(&tasks, config.overwrite)?;
+        let reporter = DefaultReporter::new();
+        
+        if config.verbose {
+            reporter.verbose_operation_preview(&tasks);
+        } else {
+            reporter.operation_start("apply", &format!("Creating {} tasks", tasks.len()));
+        }
+        
+        let (files_created, dirs_created) = create_files_and_directories(&tasks, config.overwrite)?;
         let duration = start_time.elapsed();
-        print_colored_duration("Successfully generated files and directories in ", duration);
+        
+        let apply_result = SimpleApplyResult::new(
+            files_created,
+            dirs_created,
+            duration,
+            tasks.len(),
+        );
+        reporter.apply_complete(&apply_result);
     }
 
     Ok(())
