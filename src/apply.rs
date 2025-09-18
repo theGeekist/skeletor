@@ -102,16 +102,20 @@ pub fn run_apply(matches: &ArgMatches) -> Result<(), SkeletorError> {
             reporter.operation_start("apply", &format!("Creating {} tasks", tasks.len()));
         }
         
-        let (files_created, dirs_created) = create_files_and_directories(&tasks, config.overwrite)?;
+        let creation_result = create_files_and_directories(&tasks, config.overwrite)?;
         let duration = start_time.elapsed();
         
-        let apply_result = SimpleApplyResult::new(
-            files_created,
-            dirs_created,
+        let apply_result = SimpleApplyResult::with_skipped_and_overwritten(
+            creation_result.files_created,
+            creation_result.dirs_created,
             duration,
             tasks.len(),
+            creation_result.files_skipped,
+            creation_result.skipped_files_list,
+            creation_result.files_overwritten,
+            creation_result.overwritten_files_list,
         );
-        reporter.apply_complete(&apply_result);
+        reporter.apply_complete(&apply_result, config.verbose);
     }
 
     Ok(())
@@ -185,6 +189,193 @@ mod tests {
         
         if let Some(sub_m) = create_apply_matches(args) {
             assert_command_fails(|| crate::apply::run_apply(&sub_m));
+        }
+    }
+
+    #[test]
+    fn test_extract_binary_files_from_yaml() {
+        use serde_yaml::Value;
+        
+        // Test with binary_files present
+        let mut mapping = serde_yaml::Mapping::new();
+        mapping.insert(
+            Value::String("binary_files".to_string()),
+            Value::Sequence(vec![
+                Value::String("image.png".to_string()),
+                Value::String("binary.exe".to_string()),
+            ])
+        );
+        let yaml = Value::Mapping(mapping);
+        
+        let result = super::extract_binary_files_from_yaml(&yaml);
+        assert_eq!(result, vec!["image.png", "binary.exe"]);
+        
+        // Test with no binary_files key
+        let empty_yaml = Value::Mapping(serde_yaml::Mapping::new());
+        let result = super::extract_binary_files_from_yaml(&empty_yaml);
+        assert!(result.is_empty());
+        
+        // Test with non-sequence binary_files
+        let mut mapping = serde_yaml::Mapping::new();
+        mapping.insert(
+            Value::String("binary_files".to_string()),
+            Value::String("not_a_sequence".to_string())
+        );
+        let yaml = Value::Mapping(mapping);
+        
+        let result = super::extract_binary_files_from_yaml(&yaml);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_extract_ignore_patterns_from_yaml() {
+        use serde_yaml::Value;
+        
+        // Test with ignore_patterns present
+        let mut mapping = serde_yaml::Mapping::new();
+        mapping.insert(
+            Value::String("ignore_patterns".to_string()),
+            Value::Sequence(vec![
+                Value::String("*.tmp".to_string()),
+                Value::String("target/".to_string()),
+            ])
+        );
+        let yaml = Value::Mapping(mapping);
+        
+        let result = super::extract_ignore_patterns_from_yaml(&yaml);
+        assert_eq!(result, vec!["*.tmp", "target/"]);
+        
+        // Test with no ignore_patterns key
+        let empty_yaml = Value::Mapping(serde_yaml::Mapping::new());
+        let result = super::extract_ignore_patterns_from_yaml(&empty_yaml);
+        assert!(result.is_empty());
+        
+        // Test with non-sequence ignore_patterns
+        let mut mapping = serde_yaml::Mapping::new();
+        mapping.insert(
+            Value::String("ignore_patterns".to_string()),
+            Value::String("not_a_sequence".to_string())
+        );
+        let yaml = Value::Mapping(mapping);
+        
+        let result = super::extract_ignore_patterns_from_yaml(&yaml);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_apply_with_verbose_flag() {
+        let fs = TestFileSystem::new();
+        
+        // CRITICAL SAFETY: Change to temp directory to avoid overwriting project files
+        let original_dir = std::env::current_dir().expect("Failed to get current directory");
+        std::env::set_current_dir(&fs.root_path).expect("Failed to change to temp directory");
+        
+        let config_file = fs.create_test_config("verbose.yml");
+        
+        let args = vec![
+            config_file.to_str().unwrap(),
+            "--verbose",
+        ];
+        
+        if let Some(sub_m) = create_apply_matches(args) {
+            assert_command_succeeds(|| crate::apply::run_apply(&sub_m));
+        }
+        
+        // CRITICAL SAFETY: Restore original directory
+        std::env::set_current_dir(original_dir).expect("Failed to restore original directory");
+    }
+
+    #[test]
+    fn test_apply_with_overwrite_flag() {
+        let fs = TestFileSystem::new();
+        
+        // CRITICAL SAFETY: Change to temp directory to avoid overwriting project files
+        let original_dir = std::env::current_dir().expect("Failed to get current directory");
+        std::env::set_current_dir(&fs.root_path).expect("Failed to change to temp directory");
+        
+        let config_file = fs.create_test_config("overwrite.yml");
+        
+        // Run once to create files
+        let args = vec![config_file.to_str().unwrap()];
+        if let Some(sub_m) = create_apply_matches(args) {
+            assert_command_succeeds(|| crate::apply::run_apply(&sub_m));
+        }
+        
+        // Run again with overwrite flag
+        let args = vec![
+            config_file.to_str().unwrap(),
+            "--overwrite",
+        ];
+        
+        if let Some(sub_m) = create_apply_matches(args) {
+            assert_command_succeeds(|| crate::apply::run_apply(&sub_m));
+        }
+        
+        // CRITICAL SAFETY: Restore original directory BEFORE fs goes out of scope
+        std::env::set_current_dir(&original_dir).expect("Failed to restore original directory");
+        
+        // fs will be dropped here, but we've already restored the directory
+    }
+
+    #[test]
+    fn test_apply_config_from_matches() {
+        let args = vec![
+            "test.yml",
+            "--overwrite",
+            "--verbose",
+        ];
+        
+        if let Some(sub_m) = create_apply_matches(args) {
+            let config = super::ApplyConfig::from_matches(&sub_m);
+            assert_eq!(config.input_path.to_str().unwrap(), "test.yml");
+            assert!(config.overwrite);
+            assert!(config.verbose);
+            assert!(!config.dry_run);
+        }
+    }
+
+    #[test]
+    fn test_apply_config_defaults() {
+        let args = vec!["basic.yml"];
+        
+        if let Some(sub_m) = create_apply_matches(args) {
+            let config = super::ApplyConfig::from_matches(&sub_m);
+            assert_eq!(config.input_path.to_str().unwrap(), "basic.yml");
+            assert!(!config.overwrite);
+            assert!(!config.verbose);
+            assert!(!config.dry_run);
+        }
+    }
+
+    #[test]
+    fn test_apply_with_binary_files_and_ignore_patterns() {
+        let fs = TestFileSystem::new();
+        
+        // Create a config with binary_files and ignore_patterns
+        let config_content = r#"
+directories:
+  test_complex:
+    hello_main.rs: |
+      fn main() {
+          println!("Hello, world!");
+      }
+binary_files:
+  - "image.png"
+  - "binary.exe"
+ignore_patterns:
+  - "*.tmp"
+  - "target/"
+"#;
+        let config_file = fs.create_config_from_content("complex.yml", config_content);
+        
+        let args = vec![
+            config_file.to_str().unwrap(),
+            "--dry-run",
+            "--verbose",
+        ];
+        
+        if let Some(sub_m) = create_apply_matches(args) {
+            assert_command_succeeds(|| crate::apply::run_apply(&sub_m));
         }
     }
 }

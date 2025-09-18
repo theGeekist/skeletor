@@ -1,0 +1,44 @@
+directories:
+  test-project:
+    src:
+      main.rs: |
+        fn main() {
+            println!("Hello from UPDATED test project!");
+            println!("This is NEW content for overwrite testing!");
+        }
+      lib.rs: |
+        pub fn greet(name: &str) {
+            println!("Updated Hello, {}!", name);
+        }
+        
+        pub fn farewell(name: &str) {
+            println!("Goodbye, {}!", name);
+        }
+    tests:
+      integration_test.rs: |
+        #[test]
+        fn test_greet() {
+            // UPDATED Test implementation
+            assert!(true);
+        }
+        
+        #[test]
+        fn test_farewell() {
+            // NEW test function
+            assert!(true);
+        }
+    README.md: |
+      # Test Project - UPDATED
+      
+      This is a safe test project for skeletor testing.
+      
+      ## NEW SECTION
+      This content was added to test overwrite functionality.
+    Cargo.toml: |
+      [package]
+      name = "test-project"
+      version = "0.2.0"
+      edition = "2021"
+      
+      [dependencies]
+      serde = "1.0"

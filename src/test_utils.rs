@@ -96,14 +96,14 @@ pub mod helpers {
         pub fn create_test_config(&self, filename: &str) -> PathBuf {
             let config_content = r#"
 directories:
-  src:
-    main.rs: |
+  test_output:
+    hello.rs: |
       fn main() {
           println!("Hello, world!");
       }
-    lib.rs: ""
-  tests:
-    test.rs: "// Test content"
+    module.rs: ""
+  test_files:
+    sample.rs: "// Test content"
 "#;
             self.create_file(filename, config_content)
         }
@@ -120,12 +120,17 @@ directories:
             self.create_file(filename, content)
         }
 
+        /// Create a config file with custom content
+        pub fn create_config_from_content(&self, filename: &str, content: &str) -> PathBuf {
+            self.create_file(filename, content)
+        }
+
         /// Create a basic project structure for snapshot testing
         #[allow(dead_code)]
         pub fn create_sample_project(&self) -> PathBuf {
-            self.create_dir("src");
-            self.create_file("src/main.rs", "fn main() { println!(\"Hello!\"); }");
-            self.create_file("src/lib.rs", "// Library code");
+            self.create_dir("sample_project");
+            self.create_file("sample_project/main_file.rs", "fn main() { println!(\"Hello!\"); }");
+            self.create_file("sample_project/lib_file.rs", "// Library code");
             self.create_file(".hidden", "secret");
             self.create_file("README.md", "# Test Project");
             
