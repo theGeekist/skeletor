@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-header -->
 
-## [Unreleased] - 2025-09-18
+## [Unreleased] - ReleaseDate
+
+## [0.3.5] - 2025-09-18
 
 ### Fixed
 - **Release Pipeline**: Resolved version conflict preventing package publication
@@ -214,7 +216,8 @@ let result = apply_config(&config, Path::new("./output"), false, false)?;
 ```
 
 <!-- next-url -->
-[Unreleased]: https://github.com/theGeekist/skeletor/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/theGeekist/skeletor/compare/v0.3.5...HEAD
+[0.3.5]: https://github.com/theGeekist/skeletor/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/theGeekist/skeletor/compare/v0.3.2...v0.3.4
 [0.3.2]: https://github.com/theGeekist/skeletor/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/thegeekist/skeletor/releases/tag/v0.3.1
