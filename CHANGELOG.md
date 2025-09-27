@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-header -->
 
+## [Unreleased]
+
+### Fixed
+- **CRITICAL Data Corruption Bug**: Apply command `-o` flag incorrectly mapped to overwrite instead of output
+  - **Root Cause**: CLI argument `-o` was assigned to `overwrite` instead of `output`, risking data loss
+  - **Safety Impact**: Users expecting `-o` for output directory could accidentally overwrite existing files
+  - **Solution**: Added proper `-o/--output` flag for specifying output directory, kept `--overwrite` long-only for safety
+  - **Examples Updated**: Help text now shows correct usage: `skeletor apply -o ../new-project template.yml`
+
+### Enhanced
+- **Apply Command Output Control**: Added `-o/--output` flag for specifying target directory
+  - **New Functionality**: `skeletor apply config.yml -o /path/to/target` creates files in specified directory
+  - **Default Behavior**: Without `-o`, files are created in current directory (backward compatible)
+  - **Safety First**: `--overwrite` remains long-only flag to prevent accidental data loss
+  - **Integration**: Full integration with existing dry-run, verbose, and overwrite features
+- **Snapshot Ignore Pattern Handling**: Dramatically improved robustness and user experience
+  - **Graceful Degradation**: Invalid patterns in `.gitignore` files now show warnings and continue processing
+  - **Professional Messaging**: Uses established Reporter system for consistent colored output
+  - **Smart Validation**: Direct command-line patterns fail fast, file patterns skip invalid entries with helpful tips
+  - **Shell Expansion Guidance**: Clear documentation and examples warning about unquoted glob patterns
+  - **Error Prevention**: Help text prominently shows correct quoted usage vs incorrect shell expansion
+
+### Added
+- **Comprehensive Test Coverage**: Added 12+ new tests covering critical functionality
+  - **Apply Tests**: `-o/--output` flag behavior, default directory handling, overwrite flag separation
+  - **Snapshot Tests**: Invalid pattern handling, mixed valid/invalid patterns, reporter integration
+  - **Integration Tests**: End-to-end CLI testing for output directory functionality
+  - **Edge Cases**: Comprehensive validation of error conditions and recovery scenarios
+
+### Documentation
+- **Shell Expansion Warning**: Help text now clearly explains quoting requirements
+  - **Good Examples**: `skeletor snapshot -i "*.log" -i "target/*" .`
+  - **Bad Examples**: `skeletor snapshot -i *.log -i target/* .` # Shell expands patterns
+  - **Visual Indicators**: ✓/✗ symbols clearly show correct vs incorrect usage
+- **CLI Help Enhancement**: Improved examples showing proper flag usage and safety considerations
+
 ## [0.3.7] - 2025-09-18
 
 ## [0.3.6] - 2025-09-18

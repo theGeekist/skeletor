@@ -115,7 +115,7 @@ pub fn build_cli() -> Command {
         .subcommand_required(true)
         .subcommand(
             Command::new("apply")
-                .about("Creates files and directories based on a YAML configuration\n\nEXAMPLES:\n  skeletor apply                           # Use .skeletorrc config\n  skeletor apply my-template.yml           # Use custom config\n  skeletor apply --dry-run                 # Preview changes (summary)\n  skeletor apply --dry-run --verbose       # Preview changes (full listing)")
+                .about("Creates files and directories based on a YAML configuration\n\nEXAMPLES:\n  skeletor apply                           # Use .skeletorrc config in current dir\n  skeletor apply my-template.yml           # Use custom config in current dir\n  skeletor apply -o ../new-project         # Apply to different directory\n  skeletor apply --dry-run                 # Preview changes (summary)\n  skeletor apply --dry-run --verbose       # Preview changes (full listing)")
                 .arg(
                     Arg::new("config")
                         .value_name("CONFIG_FILE")
@@ -123,8 +123,14 @@ pub fn build_cli() -> Command {
                         .index(1),
                 )
                 .arg(
-                    Arg::new("overwrite")
+                    Arg::new("output")
                         .short('o')
+                        .long("output")
+                        .value_name("DIR")
+                        .help("Output directory where files will be created (defaults to current directory)"),
+                )
+                .arg(
+                    Arg::new("overwrite")
                         .long("overwrite")
                         .help("Overwrite existing files if they already exist")
                         .action(ArgAction::SetTrue),
@@ -146,7 +152,7 @@ pub fn build_cli() -> Command {
         )
         .subcommand(
             Command::new("snapshot")
-                .about("Creates a .skeletorrc snapshot from an existing folder\n\nEXAMPLES:\n  skeletor snapshot my-project              # Print YAML to stdout\n  skeletor snapshot my-project -o config.yml # Save to file\n  skeletor snapshot src/ -i \"*.log\" -i target/ # Ignore build artifacts\n  skeletor snapshot --dry-run my-project    # Preview snapshot (summary)\n  skeletor snapshot --dry-run --verbose my-project # Preview with details")
+                .about("Creates a .skeletorrc snapshot from an existing folder\n\nEXAMPLES:\n  skeletor snapshot my-project              # Print YAML to stdout\n  skeletor snapshot my-project -o config.yml # Save to file\n  skeletor snapshot src/ -i \"*.log\" -i target/ # Ignore build artifacts\n  skeletor snapshot --dry-run my-project    # Preview snapshot (summary)\n  skeletor snapshot --dry-run --verbose my-project # Preview with details\n\nIMPORTANT: Quote glob patterns to prevent shell expansion:\n  ✓ skeletor snapshot -i \"*.log\" -i \"src/**/*.tmp\" .\n  ✗ skeletor snapshot -i *.log -i src/**/*.tmp .  # Shell expands patterns")
                 .arg(
                     Arg::new("source")
                         .value_name("FOLDER")
@@ -172,7 +178,7 @@ pub fn build_cli() -> Command {
                         .short('i')
                         .long("ignore")
                         .value_name("PATTERN_OR_FILE")
-                        .help("Exclude files from snapshot (can be used multiple times)\n  • Glob patterns: \"*.log\", \"target/*\", \"node_modules/\"\n  • Ignore files: \".gitignore\", \".dockerignore\"")
+                        .help("Exclude files from snapshot (can be used multiple times)\n  • Glob patterns: \"*.log\", \"target/*\", \"node_modules/\" (QUOTE THEM!)\n  • Ignore files: \".gitignore\", \".dockerignore\"\n  • IMPORTANT: Always quote glob patterns to prevent shell expansion")
                         .action(ArgAction::Append),
                 )
                 .arg(

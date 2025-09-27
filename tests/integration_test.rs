@@ -211,6 +211,113 @@ fn test_cli_error_missing_config() {
     assert!(stderr.contains("error:") || stderr.contains("Error") || stderr.contains("not found"));
 }
 
+/// Test apply subcommand with output directory flag
+#[test]
+fn test_cli_apply_with_output_directory() {
+    let temp_dir = tempdir().unwrap();
+    let config_file = temp_dir.path().join("test.yml");
+    let output_dir = temp_dir.path().join("output");
+    
+    // Create a simple test configuration
+    let config_content = r#"directories:
+  src:
+    main.rs: |
+      fn main() {
+          println!("Hello from output dir!");
+      }
+  README.md: "Test Project Documentation"
+"#;
+    fs::write(&config_file, config_content).unwrap();
+
+    let output = Command::new("cargo")
+        .args([
+            "run", "--", "apply", 
+            config_file.to_str().unwrap(),
+            "-o", output_dir.to_str().unwrap()
+        ])
+        .output()
+        .expect("Failed to run skeletor apply with -o");
+    
+    assert!(output.status.success(), "Apply command with -o failed: {}", 
+            String::from_utf8_lossy(&output.stderr));
+    
+    // Verify files were created in the output directory
+    assert!(output_dir.join("src/main.rs").exists(), "main.rs should exist in output directory");
+    assert!(output_dir.join("README.md").exists(), "README.md should exist in output directory");
+    
+    // Verify content is correct
+    let main_content = fs::read_to_string(output_dir.join("src/main.rs")).unwrap();
+    assert!(main_content.contains("Hello from output dir!"));
+    
+    // Verify files were NOT created in temp_dir root
+    assert!(!temp_dir.path().join("src").exists(), "Files should not be in root directory");
+}
+
+/// Test apply subcommand with --output long flag
+#[test]
+fn test_cli_apply_with_output_long_flag() {
+    let temp_dir = tempdir().unwrap();
+    let config_file = temp_dir.path().join("test.yml");
+    let output_dir = temp_dir.path().join("output_long");
+    
+    let config_content = r#"
+directories:
+  test_file.txt: "test content"
+"#;
+    fs::write(&config_file, config_content).unwrap();
+
+    let output = Command::new("cargo")
+        .args([
+            "run", "--", "apply", 
+            config_file.to_str().unwrap(),
+            "--output", output_dir.to_str().unwrap()
+        ])
+        .output()
+        .expect("Failed to run skeletor apply with --output");
+    
+    assert!(output.status.success(), "Apply command with --output failed: {}", 
+            String::from_utf8_lossy(&output.stderr));
+    
+    // Verify file was created in the output directory
+    assert!(output_dir.join("test_file.txt").exists(), "test_file.txt should exist in output directory");
+}
+
+/// Test that overwrite flag still works with output flag
+#[test]
+fn test_cli_apply_output_with_overwrite() {
+    let temp_dir = tempdir().unwrap();
+    let config_file = temp_dir.path().join("test.yml");
+    let output_dir = temp_dir.path().join("output_overwrite");
+    
+    let config_content = r#"
+directories:
+  test.txt: "initial content"
+"#;
+    fs::write(&config_file, config_content).unwrap();
+
+    // Create the output directory and file first
+    fs::create_dir_all(&output_dir).unwrap();
+    fs::write(output_dir.join("test.txt"), "existing content").unwrap();
+
+    // Run with --overwrite
+    let output = Command::new("cargo")
+        .args([
+            "run", "--", "apply", 
+            config_file.to_str().unwrap(),
+            "-o", output_dir.to_str().unwrap(),
+            "--overwrite"
+        ])
+        .output()
+        .expect("Failed to run skeletor apply with -o and --overwrite");
+    
+    assert!(output.status.success(), "Apply command with -o and --overwrite failed: {}", 
+            String::from_utf8_lossy(&output.stderr));
+    
+    // Verify file was overwritten
+    let content = fs::read_to_string(output_dir.join("test.txt")).unwrap();
+    assert_eq!(content, "initial content", "File should be overwritten with new content");
+}
+
 /// Test CLI version output
 #[test] 
 fn test_cli_version() {

@@ -5,7 +5,6 @@ use crate::tasks::{create_files_and_directories, traverse_structure, Task};
 use clap::ArgMatches;
 use log::info;
 use serde_yaml::Value;
-use std::path::Path;
 use std::time::Instant;
 
 /// Extract binary files list from YAML if present
@@ -45,6 +44,7 @@ fn display_dry_run_output(tasks: &[Task], verbose: bool, binary_files: &[String]
 /// Parses CLI arguments and extracts apply-specific configuration
 struct ApplyConfig {
     pub input_path: std::path::PathBuf,
+    pub output_dir: std::path::PathBuf,
     pub overwrite: bool,
     pub dry_run: bool,
     pub verbose: bool,
@@ -52,8 +52,14 @@ struct ApplyConfig {
 
 impl ApplyConfig {
     fn from_matches(matches: &ArgMatches) -> Self {
+        let output_dir = matches
+            .get_one::<String>("output")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::path::PathBuf::from("."));
+        
         Self {
             input_path: default_file_path(matches.get_one::<String>("config")),
+            output_dir,
             overwrite: *matches.get_one::<bool>("overwrite").unwrap_or(&false),
             dry_run: matches.get_flag("dry_run"),
             verbose: matches.get_flag("verbose"),
@@ -82,7 +88,7 @@ pub fn run_apply(matches: &ArgMatches) -> Result<(), SkeletorError> {
     }
 
     let start_time = Instant::now();
-    let tasks = traverse_structure(Path::new("."), &yaml_config);
+    let tasks = traverse_structure(&config.output_dir, &yaml_config);
     
     // Extract binary files and ignore patterns from the full YAML document
     let binary_files = extract_binary_files_from_yaml(&full_yaml_doc);
@@ -376,6 +382,77 @@ ignore_patterns:
         
         if let Some(sub_m) = create_apply_matches(args) {
             assert_command_succeeds(|| crate::apply::run_apply(&sub_m));
+        }
+    }
+
+    #[test]
+    fn test_apply_with_output_directory() {
+        let fs = TestFileSystem::new();
+        let config_file = fs.create_test_config("test.yml");
+        let output_dir = fs.path("output");
+        
+        let args = vec![
+            config_file.to_str().unwrap(),
+            "-o",
+            output_dir.to_str().unwrap(),
+        ];
+        
+        if let Some(sub_m) = create_apply_matches(args) {
+            let config = super::ApplyConfig::from_matches(&sub_m);
+            assert_eq!(config.output_dir, output_dir);
+            assert!(!config.overwrite);
+            assert!(!config.dry_run);
+        }
+    }
+
+    #[test]
+    fn test_apply_with_long_output_flag() {
+        let fs = TestFileSystem::new();
+        let config_file = fs.create_test_config("test.yml");
+        let output_dir = fs.path("output");
+        
+        let args = vec![
+            config_file.to_str().unwrap(),
+            "--output",
+            output_dir.to_str().unwrap(),
+        ];
+        
+        if let Some(sub_m) = create_apply_matches(args) {
+            let config = super::ApplyConfig::from_matches(&sub_m);
+            assert_eq!(config.output_dir, output_dir);
+        }
+    }
+
+    #[test]
+    fn test_apply_output_defaults_to_current_dir() {
+        let fs = TestFileSystem::new();
+        let config_file = fs.create_test_config("test.yml");
+        
+        let args = vec![config_file.to_str().unwrap()];
+        
+        if let Some(sub_m) = create_apply_matches(args) {
+            let config = super::ApplyConfig::from_matches(&sub_m);
+            assert_eq!(config.output_dir, std::path::PathBuf::from("."));
+        }
+    }
+
+    #[test]
+    fn test_apply_overwrite_flag_is_separate_from_output() {
+        let fs = TestFileSystem::new();
+        let config_file = fs.create_test_config("test.yml");
+        let output_dir = fs.path("output");
+        
+        let args = vec![
+            config_file.to_str().unwrap(),
+            "-o",
+            output_dir.to_str().unwrap(),
+            "--overwrite",
+        ];
+        
+        if let Some(sub_m) = create_apply_matches(args) {
+            let config = super::ApplyConfig::from_matches(&sub_m);
+            assert_eq!(config.output_dir, output_dir);
+            assert!(config.overwrite);
         }
     }
 }

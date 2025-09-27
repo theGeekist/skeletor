@@ -60,7 +60,8 @@ pub fn run_snapshot(matches: &ArgMatches) -> Result<(), SkeletorError> {
     let start_time = Instant::now();
 
     // Process ignore patterns and prepare verbose information
-    let ignore_patterns = collect_ignore_patterns(matches)?;
+    let reporter = DefaultReporter::new();
+    let ignore_patterns = collect_ignore_patterns(matches, &reporter)?;
     let verbose_info = prepare_verbose_info(&ignore_patterns, config.verbose);
 
     // Build globset and take snapshot
@@ -84,7 +85,6 @@ pub fn run_snapshot(matches: &ArgMatches) -> Result<(), SkeletorError> {
     )?;
 
     let duration = start_time.elapsed();
-    let reporter = DefaultReporter::new();
     
     if config.dry_run {
         // Use Reporter system for consistent dry-run formatting
@@ -107,7 +107,7 @@ pub fn run_snapshot(matches: &ArgMatches) -> Result<(), SkeletorError> {
 }
 
 /// Collects ignore patterns from CLI arguments.
-fn collect_ignore_patterns(matches: &ArgMatches) -> Result<Vec<String>, SkeletorError> {
+fn collect_ignore_patterns(matches: &ArgMatches, reporter: &DefaultReporter) -> Result<Vec<String>, SkeletorError> {
     let mut ignore_patterns = Vec::new();
 
     if let Some(vals) = matches.get_many::<String>("ignore") {
@@ -119,11 +119,22 @@ fn collect_ignore_patterns(matches: &ArgMatches) -> Result<Vec<String>, Skeletor
                 for line in content.lines() {
                     let trimmed = line.trim();
                     if !trimmed.is_empty() && !trimmed.starts_with('#') {
+                        // Validate the pattern before adding it
+                        if let Err(e) = Glob::new(trimmed) {
+                            reporter.warning(&format!("Skipping invalid glob pattern '{}' from {}: {}", trimmed, val, e));
+                            reporter.tip("Escape special characters like '{' with '[{]' or use simpler patterns");
+                            continue;
+                        }
                         ignore_patterns.push(trimmed.to_string());
                     }
                 }
             } else {
-                // Treat as a direct glob pattern.
+                // Treat as a direct glob pattern - validate it first
+                if let Err(e) = Glob::new(val) {
+                    return Err(SkeletorError::InvalidIgnorePattern { 
+                        pattern: format!("{} ({})", val, e) 
+                    });
+                }
                 ignore_patterns.push(val.to_string());
             }
         }
@@ -567,6 +578,117 @@ src:
             assert!(result.is_ok(), "run_snapshot failed: {:?}", result);
         } else {
             panic!("Snapshot subcommand not found");
+        }
+    }
+
+    #[test]
+    fn test_collect_ignore_patterns_with_invalid_patterns_in_file() {
+        let fs = TestFileSystem::new();
+        
+        // Create a .gitignore file with some valid and some invalid patterns
+        let gitignore_content = r#"
+# Valid patterns
+*.log
+target/
+node_modules/
+
+# Invalid pattern with unclosed brace
+{invalid_brace_pattern
+
+# More valid patterns
+temp/**
+*.tmp
+"#;
+        let gitignore_file = fs.create_file(".gitignore", gitignore_content);
+        
+        let args = vec![
+            fs.root_path.to_str().unwrap(),
+            "--ignore",
+            gitignore_file.to_str().unwrap(),
+        ];
+        
+        if let Some(sub_m) = create_snapshot_matches(args) {
+            let reporter = DefaultReporter::new();
+            let result = collect_ignore_patterns(&sub_m, &reporter);
+            
+            // Should succeed but skip the invalid pattern
+            assert!(result.is_ok(), "collect_ignore_patterns failed: {:?}", result);
+            
+            let patterns = result.unwrap();
+            // Should have valid patterns but not the invalid one
+            assert!(patterns.contains(&"*.log".to_string()));
+            assert!(patterns.contains(&"target/".to_string()));
+            assert!(patterns.contains(&"node_modules/".to_string()));
+            assert!(patterns.contains(&"temp/**".to_string()));
+            assert!(patterns.contains(&"*.tmp".to_string()));
+            
+            // Should NOT contain the invalid pattern
+            assert!(!patterns.contains(&"{invalid_brace_pattern".to_string()));
+        }
+    }
+
+    #[test]
+    fn test_collect_ignore_patterns_with_invalid_direct_pattern() {
+        let fs = TestFileSystem::new();
+        
+        let args = vec![
+            fs.root_path.to_str().unwrap(),
+            "--ignore",
+            "{invalid_direct_pattern",
+        ];
+        
+        if let Some(sub_m) = create_snapshot_matches(args) {
+            let reporter = DefaultReporter::new();
+            let result = collect_ignore_patterns(&sub_m, &reporter);
+            
+            // Should fail for invalid direct patterns
+            assert!(result.is_err(), "Expected collect_ignore_patterns to fail for invalid direct pattern");
+            
+            if let Err(error) = result {
+                match error {
+                    crate::errors::SkeletorError::InvalidIgnorePattern { pattern } => {
+                        assert!(pattern.contains("{invalid_direct_pattern"));
+                        assert!(pattern.contains("unclosed alternate group"));
+                    }
+                    _ => panic!("Expected InvalidIgnorePattern error, got: {:?}", error),
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_collect_ignore_patterns_mixed_valid_and_invalid_file() {
+        let fs = TestFileSystem::new();
+        
+        // Create files and a .gitignore with both valid and invalid patterns
+        fs.create_file("valid.log", "should be ignored");
+        fs.create_file("invalid_pattern_file.txt", "should not be ignored");
+        
+        let gitignore_content = "*.log\n{unclosed_brace\nvalid_pattern.txt";
+        let gitignore_file = fs.create_file(".gitignore", gitignore_content);
+        
+        let args = vec![
+            fs.root_path.to_str().unwrap(),
+            "--ignore", 
+            gitignore_file.to_str().unwrap(),
+            "--ignore",
+            "*.txt", // Direct valid pattern
+        ];
+        
+        if let Some(sub_m) = create_snapshot_matches(args) {
+            let reporter = DefaultReporter::new();
+            let result = collect_ignore_patterns(&sub_m, &reporter);
+            
+            assert!(result.is_ok(), "collect_ignore_patterns should succeed");
+            
+            let patterns = result.unwrap();
+            // Should have valid patterns from both file and direct
+            assert!(patterns.contains(&"*.log".to_string()));
+            assert!(patterns.contains(&"valid_pattern.txt".to_string()));
+            assert!(patterns.contains(&"*.txt".to_string()));
+            
+            // Should NOT have invalid pattern
+            assert!(!patterns.contains(&"{unclosed_brace".to_string()));
         }
     }
 }
