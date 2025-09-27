@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-header -->
 
-## [Unreleased]
+## [Unreleased] - ReleaseDate
 
 ### Fixed
 - **CRITICAL Data Corruption Bug**: Apply command `-o` flag incorrectly mapped to overwrite instead of output
