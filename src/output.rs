@@ -93,6 +93,12 @@ pub trait Reporter {
     /// Report a task warning
     fn task_warning(&self, task: &Task, error: &str);
     
+    /// Report a general warning
+    fn warning(&self, message: &str);
+    
+    /// Report a general tip
+    fn tip(&self, message: &str);
+    
     /// Preview tasks in dry-run mode
     fn dry_run_preview(&self, tasks: &[Task]);
     
@@ -199,6 +205,26 @@ impl Reporter for DefaultReporter {
                     Task::File(path, _) => println!("warning: {}: {}", path.display(), error),
                 }
             }
+        }
+    }
+    
+    fn warning(&self, message: &str) {
+        match self.format {
+            OutputFormat::Pretty => {
+                self.write_colored_inline("warning: ", Some(Color::Yellow));
+                println!("{}", message);
+            },
+            _ => println!("warning: {}", message),
+        }
+    }
+    
+    fn tip(&self, message: &str) {
+        match self.format {
+            OutputFormat::Pretty => {
+                self.write_colored_inline("tip: ", Some(Color::Yellow));
+                println!("{}", message);
+            },
+            _ => println!("tip: {}", message),
         }
     }
     
@@ -497,6 +523,8 @@ impl Reporter for SilentReporter {
     fn progress(&self, _current: usize, _total: usize, _message: &str) {}
     fn task_success(&self, _task: &Task) {}
     fn task_warning(&self, _task: &Task, _error: &str) {}
+    fn warning(&self, _message: &str) {}
+    fn tip(&self, _message: &str) {}
     fn dry_run_preview(&self, _tasks: &[Task]) {}
     fn dry_run_preview_verbose(&self, _tasks: &[Task], _verbose: bool) {}
     fn dry_run_preview_comprehensive(&self, _tasks: &[Task], _verbose: bool, _binary_files: &[String], _ignore_patterns: &[String], _verb: &str) {}
