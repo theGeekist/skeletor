@@ -5,7 +5,7 @@
 echo "🔍 Running pre-commit version consistency check..."
 
 # Run the version consistency checker
-if ! ./scripts/check-version-consistency.sh; then
+if ./scripts/check-version-consistency.sh; then
     echo ""
     echo "💥 COMMIT BLOCKED: Version consistency check failed"
     echo "🔧 Please fix version drift issues before committing"
