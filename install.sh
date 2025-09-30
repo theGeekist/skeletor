@@ -1,115 +1,84 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Ensure required commands are available
-command -v curl >/dev/null 2>&1 || { echo "❌ 'curl' is required but not installed."; exit 1; }
+# -----------------------------------------
+# Skeletor installer (macOS arm/x64, Linux x64)
+# -----------------------------------------
 
-REPO="jasonnathan/skeletor"
-# Create a unique temporary directory and ensure cleanup on exit
-TMP_DIR=$(mktemp -d)
-trap 'rm -rf "$TMP_DIR"' EXIT
+command -v curl >/dev/null 2>&1 || { echo "❌ 'curl' is required."; exit 1; }
+command -v tar  >/dev/null 2>&1 || { echo "❌ 'tar' is required.";  exit 1; }
 
-# Detect OS using OSTYPE
-case "$OSTYPE" in
-  darwin*) OS="macos" ;;
-  linux*) OS="linux" ;;
-  msys*|cygwin*|win32*|win64*) OS="windows" ;;
-  *) echo "❌ Unsupported OS: $OSTYPE" && exit 1 ;;
+REPO="theGeekist/skeletor"
+
+# Optional pin: SKELETOR_VERSION=vX.Y.Z or pass as first arg
+VERSION="${1:-${SKELETOR_VERSION:-}}"
+if [[ -z "${VERSION}" ]]; then
+  # Robust 'latest' resolution: try API, fall back to Location of releases/latest
+  VERSION="$(curl -fsSL -H 'Accept: application/vnd.github+json' \
+    "https://api.github.com/repos/${REPO}/releases/latest" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' || true)"
+  if [[ -z "${VERSION}" ]]; then
+    VERSION="$(curl -sI -L "https://github.com/${REPO}/releases/latest" \
+      | grep -i '^location:' | sed -n 's#.*/tag/\(v[^[:space:]]*\).*#\1#p' | tr -d '\r')"
+  fi
+fi
+[[ -n "${VERSION}" ]] || { echo "❌ Failed to determine version."; exit 1; }
+
+# OS / ARCH matrix -> asset names used in releases
+UNAME_S="$(uname -s | tr '[:upper:]' '[:lower:]')"
+UNAME_M="$(uname -m)"
+
+case "${UNAME_S}" in
+  darwin)
+    OS_STR="macos"
+    case "${UNAME_M}" in
+      arm64|aarch64) ARCH_TRIPLE="aarch64-apple-darwin" ;;
+      x86_64)         ARCH_TRIPLE="x86_64-apple-darwin" ;;
+      *) echo "❌ Unsupported macOS arch: ${UNAME_M}"; exit 1 ;;
+    esac
+    ;;
+  linux)
+    OS_STR="ubuntu"  # matches release asset naming
+    case "${UNAME_M}" in
+      x86_64) ARCH_TRIPLE="x86_64-unknown-linux-gnu" ;;
+      *) echo "❌ Only x86_64 Linux build is published presently."; exit 1 ;;
+    esac
+    ;;
+  msys*|cygwin*|*mingw*)
+    echo "❌ Windows installer is not published yet. Use WSL or build from source." ; exit 1 ;;
+  *)
+    echo "❌ Unsupported OS: ${UNAME_S}" ; exit 1 ;;
 esac
 
-# For asset naming, Linux assets are tagged as "ubuntu"
-if [[ "$OS" == "linux" ]]; then
-  OS_STR="ubuntu"
+ASSET="skeletor-${OS_STR}-${ARCH_TRIPLE}.tar.gz"
+BASE="https://github.com/${REPO}/releases/download/${VERSION}"
+URL="${BASE}/${ASSET}"
+
+# HEAD check to fail fast if asset doesn’t exist
+if ! curl -fsI "${URL}" >/dev/null 2>&1; then
+  echo "❌ Asset not found: ${URL}"
+  echo "   Ensure ${REPO} has a release ${VERSION} with asset ${ASSET}"
+  exit 1
+fi
+
+TMP_DIR="$(mktemp -d)"; trap 'rm -rf "$TMP_DIR"' EXIT
+
+echo "🔽 Downloading skeletor ${VERSION} for ${OS_STR} (${ARCH_TRIPLE})"
+curl -fSL "${URL}" -o "${TMP_DIR}/${ASSET}"
+
+echo "📦 Extracting…"
+tar -xzf "${TMP_DIR}/${ASSET}" -C "${TMP_DIR}"
+
+# Expect the binary to be named 'skeletor' inside the tarball
+BIN_PATH="${TMP_DIR}/skeletor"
+[[ -f "${BIN_PATH}" ]] || { echo "❌ Binary 'skeletor' not found in archive."; exit 1; }
+chmod +x "${BIN_PATH}"
+
+INSTALL_DIR="/usr/local/bin"
+if [[ -w "${INSTALL_DIR}" ]]; then
+  mv "${BIN_PATH}" "${INSTALL_DIR}/skeletor"
 else
-  OS_STR="$OS"
+  sudo mv "${BIN_PATH}" "${INSTALL_DIR}/skeletor"
 fi
 
-# Determine architecture based on OS
-if [[ "$OS" == "windows" ]]; then
-    # For Windows, use wmic if available
-    if command -v wmic >/dev/null 2>&1; then
-        ARCH=$(wmic os get osarchitecture | grep -Eo '64-bit|32-bit' || echo "unknown")
-    else
-        ARCH=$(uname -m 2>/dev/null || echo "unknown")
-    fi
-    if [[ "$ARCH" == "64-bit" ]]; then
-        ARCH="x86_64"
-    elif [[ "$ARCH" == "32-bit" ]]; then
-        echo "❌ 32-bit Windows is not supported." && exit 1
-    else
-        echo "❌ Unsupported architecture on Windows: $ARCH" && exit 1
-    fi
-elif [[ "$OS" == "macos" ]]; then
-    ARCH=$(uname -m)
-    if [[ "$ARCH" == "arm64" ]]; then
-        ARCH="aarch64"
-    else
-        ARCH="x86_64"
-    fi
-elif [[ "$OS" == "linux" ]]; then
-    # Currently only the x86_64 Linux build is provided
-    ARCH="x86_64"
-fi
-
-# Determine target and file extension based on OS and architecture
-EXT="tar.gz"
-if [[ "$OS" == "macos" ]]; then
-    TARGET="${ARCH}-apple-darwin"
-elif [[ "$OS" == "linux" ]]; then
-    TARGET="${ARCH}-unknown-linux-gnu"
-elif [[ "$OS" == "windows" ]]; then
-    TARGET="${ARCH}-pc-windows-msvc"
-    EXT="zip"
-else
-    echo "❌ Unsupported OS detected." && exit 1
-fi
-
-# Determine binary name for asset naming (append .exe for Windows)
-if [[ "$OS" == "windows" ]]; then
-  BINARY_NAME="skeletor.exe"
-else
-  BINARY_NAME="skeletor"
-fi
-
-# Fetch latest version using sed (avoids non-portable grep -P)
-VERSION=$(curl -s "https://api.github.com/repos/${REPO}/releases/latest" | \
-          sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
-if [[ -z "$VERSION" ]]; then
-    echo "❌ Failed to determine latest version. Check GitHub Releases."
-    exit 1
-fi
-
-# Construct asset name and URL
-ASSET="${BINARY_NAME}-${OS_STR}-${TARGET}.${EXT}"
-URL="https://github.com/${REPO}/releases/download/${VERSION}/${ASSET}"
-
-echo "🔽 Downloading ${BINARY_NAME} ${VERSION} for ${OS} ($ARCH)..."
-curl -L --fail "$URL" -o "${TMP_DIR}/${ASSET}"
-
-# Extract & install
-if [[ "$OS" == "windows" ]]; then
-    echo "📦 Extracting Windows binary..."
-    command -v unzip >/dev/null 2>&1 || { echo "❌ 'unzip' is required but not installed."; exit 1; }
-    INSTALL_DIR="/c/Program Files/Skeletor"
-    mkdir -p "$INSTALL_DIR"
-    unzip -o "${TMP_DIR}/${ASSET}" -d "$INSTALL_DIR"
-    echo "✅ Installed to $INSTALL_DIR"
-    echo "🔧 Please add '$INSTALL_DIR' to your PATH if necessary."
-else
-    echo "📦 Extracting binary..."
-    command -v tar >/dev/null 2>&1 || { echo "❌ 'tar' is required but not installed."; exit 1; }
-    tar -xzf "${TMP_DIR}/${ASSET}" -C "${TMP_DIR}"
-    chmod +x "${TMP_DIR}/skeletor"
-
-    # Install to /usr/local/bin
-    INSTALL_DIR="/usr/local/bin"
-    if [[ -w "$INSTALL_DIR" ]]; then
-        mv "${TMP_DIR}/skeletor" "${INSTALL_DIR}/skeletor"
-    else
-        sudo mv "${TMP_DIR}/skeletor" "${INSTALL_DIR}/skeletor"
-    fi
-
-    echo "✅ Installed to $INSTALL_DIR"
-fi
-
-echo "🎉 Installation complete! Run 'skeletor --help' to get started."
+echo "✅ Installed: ${INSTALL_DIR}/skeletor"
+echo "👉 skeletor --help"
