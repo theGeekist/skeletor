@@ -69,43 +69,43 @@ jobs:
           HOMEPAGE="https://github.com/${{ env.SRC_OWNER }}/${{ env.SRC_REPO }}"
           mkdir -p out/Formula
           cat > "out/${{ env.FORMULA_PATH }}" <<'RUBY'
-class Skeletor < Formula
-  desc "Two-way scaffolding CLI (apply + snapshot)"
-  homepage "__HOMEPAGE__"
-  license "MIT"
-
-  on_macos do
-    on_arm do
-      url "__MAC_ARM_URL__"
-      sha256 "__MAC_ARM_SHA__"
-    end
-    on_intel do
-      url "__MAC_X64_URL__"
-      sha256 "__MAC_X64_SHA__"
-    end
-  end
-
-  on_linux do
-    on_intel do
-      url "__LNX_X64_URL__"
-      sha256 "__LNX_X64_SHA__"
-    end
-  end
-
-  def install
-    bin.install "skeletor"
-  end
-
-  test do
-    assert_match "skeletor", shell_output("#{bin}/skeletor --help")
-  end
-
-  livecheck do
-    url :stable
-    strategy :github_latest
-  end
-end
-RUBY
+          class Skeletor < Formula
+            desc "Two-way scaffolding CLI (apply + snapshot)"
+            homepage "__HOMEPAGE__"
+            license "MIT"
+          
+            on_macos do
+              on_arm do
+                url "__MAC_ARM_URL__"
+                sha256 "__MAC_ARM_SHA__"
+              end
+              on_intel do
+                url "__MAC_X64_URL__"
+                sha256 "__MAC_X64_SHA__"
+              end
+            end
+          
+            on_linux do
+              on_intel do
+                url "__LNX_X64_URL__"
+                sha256 "__LNX_X64_SHA__"
+              end
+            end
+          
+            def install
+              bin.install "skeletor"
+            end
+          
+            test do
+              assert_match "skeletor", shell_output("#{bin}/skeletor --help")
+            end
+          
+            livecheck do
+              url :stable
+              strategy :github_latest
+            end
+          end
+          RUBY
           sed -i '' \
             -e "s|__HOMEPAGE__|$HOMEPAGE|g" \
             -e "s|__MAC_ARM_URL__|${{ steps.rel.outputs.mac_arm_url }}|g" \
