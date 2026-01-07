@@ -1,5 +1,5 @@
 use crate::errors::SkeletorError;
-use globset::GlobSet;
+use ignore::gitignore::Gitignore;
 use log::{info, warn};
 use serde_yaml::Value;
 use std::fs;
@@ -36,14 +36,34 @@ impl CreationResult {
 }
 
 /// A task to either create a directory or a file.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Task {
     Dir(PathBuf),
     File(PathBuf, String),
 }
 
+fn join_safe_path(base: &Path, key: &str) -> Result<PathBuf, SkeletorError> {
+    if key.is_empty() {
+        return Err(SkeletorError::invalid_path(key));
+    }
+
+    let key_path = Path::new(key);
+    for component in key_path.components() {
+        match component {
+            std::path::Component::ParentDir
+            | std::path::Component::RootDir
+            | std::path::Component::Prefix(_) => {
+                return Err(SkeletorError::invalid_path(key));
+            }
+            std::path::Component::CurDir | std::path::Component::Normal(_) => {}
+        }
+    }
+
+    Ok(base.join(key_path))
+}
+
 /// Traverses the YAML structure and returns a list of tasks to create directories and files.
-pub fn traverse_structure(base: &Path, yaml: &Value) -> Vec<Task> {
+pub fn traverse_structure(base: &Path, yaml: &Value) -> Result<Vec<Task>, SkeletorError> {
     let mut tasks = Vec::new();
     let mut queue = Vec::new();
     queue.push((base.to_path_buf(), yaml));
@@ -52,7 +72,7 @@ pub fn traverse_structure(base: &Path, yaml: &Value) -> Vec<Task> {
         if let Some(map) = node.as_mapping() {
             for (key, value) in map {
                 if let Some(key_str) = key.as_str() {
-                    let new_path = current_path.join(key_str);
+                    let new_path = join_safe_path(&current_path, key_str)?;
                     match value {
                         Value::Mapping(_) => {
                             tasks.push(Task::Dir(new_path.clone()));
@@ -68,7 +88,7 @@ pub fn traverse_structure(base: &Path, yaml: &Value) -> Vec<Task> {
         }
     }
 
-    tasks
+    Ok(tasks)
 }
 
 /// Creates files and directories as specified by tasks; logs progress and respects the overwrite flag.
@@ -122,7 +142,7 @@ pub fn create_files_and_directories(
             }
         }
 
-        // **Log Progress Every 100 Files to Avoid IO Overhead**
+        // **Log Progress Every 1000 Files to Avoid IO Overhead**
         if i % 1000 == 0 && i > 0 {
             info!("Processed {} out of {} tasks...", i, tasks.len());
         }
@@ -137,8 +157,9 @@ pub fn create_files_and_directories(
 
 pub fn traverse_directory(
     base: &Path,
+    root: &Path,
     include_contents: bool,
-    ignore: Option<&GlobSet>,
+    ignore: Option<&Gitignore>,
     verbose: bool,
 ) -> Result<(Value, Vec<String>), SkeletorError> {
     let mut mapping = serde_yaml::Mapping::new();
@@ -153,22 +174,25 @@ pub fn traverse_directory(
         let entry = entry?;
         let file_name = entry.file_name();
         let file_name_string = file_name.to_string_lossy().into_owned();
-        let new_relative = base.join(&file_name_string);
+        let path = entry.path();
 
         // ✅ Normalize path to relative string
-        let mut relative_str = new_relative
-            .strip_prefix(base)
-            .unwrap_or(&new_relative)
+        let mut relative_str = path
+            .strip_prefix(root)
+            .unwrap_or(&path)
             .to_string_lossy()
             .replace("\\", "/");
 
         // ✅ If it's a directory, append `/` to match `.gitignore`
-        if new_relative.is_dir() {
+        if path.is_dir() {
             relative_str.push('/');
         }
 
-        if let Some(globset) = ignore {
-            if globset.is_match(&relative_str) {
+        if let Some(matcher) = ignore {
+            let is_ignored = matcher
+                .matched_path_or_any_parents(Path::new(&relative_str), path.is_dir())
+                .is_ignore();
+            if is_ignored {
                 if verbose {
                     // Use info logging for verbose ignore information
                     info!("Ignoring: {:?}", relative_str);
@@ -177,26 +201,31 @@ pub fn traverse_directory(
             }
         }
 
-        let path = entry.path();
         if path.is_dir() {
-            let (sub_yaml, mut sub_binaries) = traverse_directory(&path, include_contents, ignore, verbose)?;
+            let (sub_yaml, mut sub_binaries) = traverse_directory(&path, root, include_contents, ignore, verbose)?;
             mapping.insert(Value::String(file_name_string), sub_yaml);
             binaries.append(&mut sub_binaries);
-        } else if path.is_file() && include_contents {
-            match fs::read(&path) {
-                Ok(bytes) => {
-                    if let Ok(text) = String::from_utf8(bytes.clone()) {
-                        // println!("Storing file: {:?}", path);
-                        mapping.insert(Value::String(file_name_string), Value::String(text));
-                    } else {
-                        // println!("Binary file detected: {:?}", path);
-                        binaries.push(new_relative.to_string_lossy().into_owned());
+        } else if path.is_file() {
+            if include_contents {
+                match fs::read(&path) {
+                    Ok(bytes) => {
+                        if let Ok(text) = String::from_utf8(bytes.clone()) {
+                            mapping.insert(Value::String(file_name_string), Value::String(text));
+                        } else {
+                            binaries.push(relative_str.clone());
+                            mapping.insert(
+                                Value::String(file_name_string),
+                                Value::String(String::new()),
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        // Use warning log for file read errors instead of direct eprintln
+                        warn!("Error reading file {:?}: {}", path, e);
                     }
                 }
-                Err(e) => {
-                    // Use warning log for file read errors instead of direct eprintln
-                    warn!("Error reading file {:?}: {}", path, e);
-                }
+            } else {
+                mapping.insert(Value::String(file_name_string), Value::String(String::new()));
             }
         }
     }
@@ -232,6 +261,7 @@ pub fn compute_stats(yaml: &Value) -> (usize, usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ignore::gitignore::GitignoreBuilder;
     use serde_yaml::Value;
     use crate::test_utils::helpers::*;
 
@@ -247,7 +277,7 @@ mod tests {
         )
         .expect("Failed to parse YAML");
 
-        let tasks = traverse_structure(Path::new("."), &structure);
+        let tasks = traverse_structure(Path::new("."), &structure).unwrap();
 
         let expected_tasks = vec![
             Task::Dir(Path::new("./src").to_path_buf()),
@@ -300,7 +330,7 @@ mod tests {
         // Hidden file should be included.
         fs.create_file("src/.hidden.txt", "secret");
 
-        let (yaml_structure, binaries) = traverse_directory(test_dir, false, None, false).unwrap();
+        let (yaml_structure, binaries) = traverse_directory(test_dir, test_dir, false, None, false).unwrap();
 
         if let Value::Mapping(map) = yaml_structure {
             // Expect "src" key exists.
@@ -465,7 +495,7 @@ mod tests {
         fs.create_file("text.txt", "Hello, world!");
         fs.create_binary_file("binary.bin", &[0xFF, 0xFE, 0xFD, 0xFC]);
 
-        let (yaml_structure, binaries) = traverse_directory(test_dir, true, None, false).unwrap();
+        let (yaml_structure, binaries) = traverse_directory(test_dir, test_dir, true, None, false).unwrap();
 
         // With include_contents=true, should detect binary files
         assert!(!binaries.is_empty());
@@ -473,8 +503,8 @@ mod tests {
         if let Value::Mapping(map) = yaml_structure {
             // Text file should be included in YAML
             assert!(map.contains_key(Value::String("text.txt".into())));
-            // Binary file should NOT be in YAML content (tracked in binaries list)
-            assert!(!map.contains_key(Value::String("binary.bin".into())));
+        // Binary file should be in YAML with empty content (tracked in binaries list)
+        assert!(map.contains_key(Value::String("binary.bin".into())));
         } else {
             panic!("Expected a YAML mapping");
         }
@@ -488,8 +518,31 @@ mod tests {
         fs.create_file("normal.txt", "content");
 
         // Test verbose mode (should log more information)
-        let result = traverse_directory(test_dir, false, None, true);
+        let result = traverse_directory(test_dir, test_dir, false, None, true);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_traverse_directory_ignore_patterns_from_root() {
+        let fs = TestFileSystem::new();
+        let test_dir = &fs.root_path;
+
+        fs.create_file("src/keep.rs", "content");
+        fs.create_file("src/ignore.txt", "content");
+
+        let mut builder = GitignoreBuilder::new(test_dir);
+        builder.add_line(None, "src/*.txt").unwrap();
+        let globset = builder.build().unwrap();
+
+        let (yaml_structure, _) = traverse_directory(test_dir, test_dir, false, Some(&globset), false).unwrap();
+
+        if let Value::Mapping(map) = yaml_structure {
+            let src = map.get(&Value::String("src".into())).and_then(Value::as_mapping).unwrap();
+            assert!(src.contains_key(&Value::String("keep.rs".into())));
+            assert!(!src.contains_key(&Value::String("ignore.txt".into())));
+        } else {
+            panic!("Expected a YAML mapping");
+        }
     }
 
     #[test]
@@ -504,7 +557,7 @@ mod tests {
             "#,
         ).unwrap();
 
-        let tasks = traverse_structure(Path::new("."), &structure);
+        let tasks = traverse_structure(Path::new("."), &structure).unwrap();
 
         // Only string values should create file tasks
         let file_tasks: Vec<_> = tasks.iter().filter(|t| matches!(t, Task::File(_, _))).collect();
@@ -517,8 +570,22 @@ mod tests {
     #[test]
     fn test_traverse_structure_empty_input() {
         let empty_structure = Value::Mapping(serde_yaml::Mapping::new());
-        let tasks = traverse_structure(Path::new("."), &empty_structure);
+        let tasks = traverse_structure(Path::new("."), &empty_structure).unwrap();
         assert!(tasks.is_empty());
+    }
+
+    #[test]
+    fn test_traverse_structure_rejects_unsafe_paths() {
+        let structure: Value = serde_yaml::from_str(
+            r#"
+            "../evil.txt": "content"
+            "/abs/path.txt": "content"
+            "#,
+        )
+        .unwrap();
+
+        let result = traverse_structure(Path::new("."), &structure);
+        assert!(result.is_err());
     }
 
     #[test] 

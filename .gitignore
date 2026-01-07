@@ -9,6 +9,7 @@ temp_skeletor_test
 src/ignore.txt
 meta.md
 100k.yml
+AGENTS.md
 
 # Safe testing directory - ignore test files but keep safety documentation
 _ops/test-configs/
@@ -34,3 +35,5 @@ Cargo.lock
 #.idea/
 .scannerwork/report-task.txt
 .scannerwork/.sonar_lock
+test_files/
+test_output/

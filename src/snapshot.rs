@@ -1,16 +1,18 @@
+mod ignore;
+
 use crate::config::{default_file_path, read_config};
 use crate::errors::SkeletorError;
 use crate::output::{DefaultReporter, SimpleSnapshotResult, Reporter};
 use crate::tasks::{compute_stats, traverse_directory, Task};
 use chrono::Utc;
 use clap::ArgMatches;
-use globset::{Glob, GlobSet, GlobSetBuilder};
 use log::info;
 use serde_yaml::{Mapping, Value};
 #[cfg(test)]
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
+use self::ignore::{collect_ignore_spec, IgnoreSpec};
 
 /// Configuration for snapshot command extracted from CLI arguments
 struct SnapshotConfig {
@@ -20,6 +22,7 @@ struct SnapshotConfig {
     pub dry_run: bool,
     pub verbose: bool,
     pub user_note: Option<String>,
+    pub output_to_stdout: bool,
 }
 
 impl SnapshotConfig {
@@ -31,6 +34,7 @@ impl SnapshotConfig {
             dry_run: matches.get_flag("dry_run"),
             verbose: matches.get_flag("verbose"),
             user_note: matches.get_one::<String>("note").map(|s| s.to_string()),
+            output_to_stdout: matches.get_flag("stdout"),
         }
     }
 }
@@ -52,6 +56,16 @@ fn prepare_verbose_info(ignore_patterns: &[String], verbose: bool) -> Vec<String
     verbose_info
 }
 
+struct SnapshotPlan {
+    dir_snapshot: Value,
+    binary_files: Vec<String>,
+    ignore_patterns: Vec<String>,
+    verbose_info: Vec<String>,
+    files_count: usize,
+    dirs_count: usize,
+    snapshot: Value,
+}
+
 /// Runs the snapshot subcommand: Generates a structured snapshot and writes it to disk.
 pub fn run_snapshot(matches: &ArgMatches) -> Result<(), SkeletorError> {
     let config = SnapshotConfig::from_matches(matches);
@@ -59,46 +73,31 @@ pub fn run_snapshot(matches: &ArgMatches) -> Result<(), SkeletorError> {
     info!("Taking snapshot of folder: {:?}", config.source_path);
     let start_time = Instant::now();
 
-    // Process ignore patterns and prepare verbose information
     let reporter = DefaultReporter::new();
-    let ignore_patterns = collect_ignore_patterns(matches, &reporter)?;
-    let verbose_info = prepare_verbose_info(&ignore_patterns, config.verbose);
-
-    // Build globset and take snapshot
-    let globset = build_globset(&ignore_patterns, false)?;
-    let (dir_snapshot, binary_files) = traverse_directory(
-        &config.source_path, 
-        config.include_contents, 
-        globset.as_ref(), 
-        false
-    )?;
-    let (files_count, dirs_count) = compute_stats(&dir_snapshot);
-
-    // Build and write snapshot
-    let snapshot = build_snapshot(
-        &config.output_path,
-        config.user_note,
-        dir_snapshot.clone(), // Clone to avoid borrow issues with dry-run
-        binary_files.clone(),
-        files_count,
-        dirs_count,
-    )?;
+    let plan = build_snapshot_plan(matches, &config, &reporter)?;
 
     let duration = start_time.elapsed();
     
     if config.dry_run {
-        // Use Reporter system for consistent dry-run formatting
-        display_snapshot_dry_run_comprehensive(&dir_snapshot, config.verbose, &binary_files, &ignore_patterns)?;
+        print_snapshot_dry_run_context(&config);
+        display_snapshot_dry_run_comprehensive(
+            &plan.dir_snapshot,
+            config.verbose,
+            &plan.binary_files,
+            &plan.ignore_patterns,
+        )?;
+    } else if config.output_to_stdout {
+        write_snapshot_to_stdout(plan.snapshot, plan.verbose_info)?;
     } else {
-        write_snapshot_with_reporter(snapshot, &config.output_path, verbose_info)?;
+        write_snapshot_with_reporter(plan.snapshot, &config.output_path, plan.verbose_info)?;
         
         let snapshot_result = SimpleSnapshotResult {
-            files_processed: files_count,
-            dirs_processed: dirs_count,
+            files_processed: plan.files_count,
+            dirs_processed: plan.dirs_count,
             duration,
             output_path: config.output_path,
-            binary_files_excluded: binary_files.len(),
-            binary_files_list: binary_files,
+            binary_files_excluded: plan.binary_files.len(),
+            binary_files_list: plan.binary_files,
         };
         reporter.snapshot_complete(&snapshot_result);
     }
@@ -106,73 +105,76 @@ pub fn run_snapshot(matches: &ArgMatches) -> Result<(), SkeletorError> {
     Ok(())
 }
 
-/// Collects ignore patterns from CLI arguments.
-fn collect_ignore_patterns(matches: &ArgMatches, reporter: &DefaultReporter) -> Result<Vec<String>, SkeletorError> {
-    let mut ignore_patterns = Vec::new();
+fn build_snapshot_plan(
+    matches: &ArgMatches,
+    config: &SnapshotConfig,
+    reporter: &DefaultReporter,
+) -> Result<SnapshotPlan, SkeletorError> {
+    let ignore_values = matches
+        .get_many::<String>("ignore")
+        .map(|vals| vals.map(|v| v.to_string()));
+    let ignore_files = matches
+        .get_many::<String>("ignore_file")
+        .map(|vals| vals.map(|v| v.to_string()));
 
-    if let Some(vals) = matches.get_many::<String>("ignore") {
-        for val in vals {
-            let candidate = Path::new(val);
-            if candidate.exists() && candidate.is_file() {
-                // Read file (e.g., `.gitignore`) and add valid patterns
-                let content = crate::utils::read_file_to_string(candidate)?;
-                for line in content.lines() {
-                    let trimmed = line.trim();
-                    if !trimmed.is_empty() && !trimmed.starts_with('#') {
-                        // Validate the pattern before adding it
-                        if let Err(e) = Glob::new(trimmed) {
-                            reporter.warning(&format!("Skipping invalid glob pattern '{}' from {}: {}", trimmed, val, e));
-                            reporter.tip("Escape special characters like '{' with '[{]' or use simpler patterns");
-                            continue;
-                        }
-                        ignore_patterns.push(trimmed.to_string());
-                    }
-                }
-            } else {
-                // Treat as a direct glob pattern - validate it first
-                if let Err(e) = Glob::new(val) {
-                    return Err(SkeletorError::InvalidIgnorePattern { 
-                        pattern: format!("{} ({})", val, e) 
-                    });
-                }
-                ignore_patterns.push(val.to_string());
-            }
-        }
-    }
-    Ok(ignore_patterns)
+    let IgnoreSpec {
+        matcher,
+        patterns: ignore_patterns,
+    } = collect_ignore_spec(&config.source_path, ignore_values, ignore_files, reporter)?;
+    let verbose_info = prepare_verbose_info(&ignore_patterns, config.verbose);
+
+    let (dir_snapshot, binary_files) = traverse_directory(
+        &config.source_path,
+        &config.source_path,
+        config.include_contents,
+        matcher.as_ref(),
+        false,
+    )?;
+    let (files_count, dirs_count) = compute_stats(&dir_snapshot);
+
+    let snapshot = build_snapshot(
+        if config.output_to_stdout {
+            None
+        } else {
+            Some(&config.output_path)
+        },
+        &config.source_path,
+        config.user_note.clone(),
+        dir_snapshot.clone(),
+        binary_files.clone(),
+        files_count,
+        dirs_count,
+    )?;
+
+    Ok(SnapshotPlan {
+        dir_snapshot,
+        binary_files,
+        ignore_patterns,
+        verbose_info,
+        files_count,
+        dirs_count,
+        snapshot,
+    })
 }
 
-fn build_globset(ignore_patterns: &[String], _verbose: bool) -> Result<Option<GlobSet>, SkeletorError> {
-    if ignore_patterns.is_empty() {
-        return Ok(None);
-    }
-
-    let mut builder = GlobSetBuilder::new();
-    for pat in ignore_patterns {
-        let normalized_pattern = pat.trim().to_string();
-        match Glob::new(&normalized_pattern) {
-            Ok(glob) => {
-                builder.add(glob);
-            }
-            Err(e) => {
-                return Err(SkeletorError::InvalidIgnorePattern { 
-                    pattern: format!("{} ({})", normalized_pattern, e) 
-                });
-            }
-        }
-    }
-
-    builder
-        .build()
-        .map(Some)
-        .map_err(|e| SkeletorError::InvalidIgnorePattern { 
-            pattern: format!("Failed to compile ignore patterns: {}", e) 
-        })
+fn print_snapshot_dry_run_context(config: &SnapshotConfig) {
+    let output_target = if config.output_to_stdout {
+        "stdout".to_string()
+    } else {
+        config.output_path.display().to_string()
+    };
+    println!("Output target: {}", output_target);
+    println!(
+        "Include contents: {}",
+        if config.include_contents { "yes" } else { "no" }
+    );
+    println!();
 }
 
 /// Builds a structured snapshot with metadata.
 fn build_snapshot(
-    output_path: &Path,
+    output_path: Option<&Path>,
+    source_path: &Path,
     user_note: Option<String>,
     dir_snapshot: Value,
     binary_files: Vec<String>,
@@ -183,17 +185,19 @@ fn build_snapshot(
     let mut created = now.clone();
 
     // Preserve "created" timestamp if output file exists
-    if output_path.exists() {
-        if let Ok(existing_config) = read_config(output_path) {
-            if let Some(Value::String(c)) = existing_config.get("created") {
-                created = c.clone();
+    if let Some(path) = output_path {
+        if path.exists() {
+            if let Ok(existing_config) = read_config(path) {
+                if let Some(Value::String(c)) = existing_config.get("created") {
+                    created = c.clone();
+                }
             }
         }
     }
 
     let updated = now;
 
-    let mut auto_info = format!("Snapshot generated from folder: {:?}", output_path);
+    let mut auto_info = format!("Snapshot generated from folder: {:?}", source_path);
     if binary_files.is_empty() {
         auto_info.push_str("\nNo binary files detected.");
     } else {
@@ -315,12 +319,27 @@ fn write_snapshot_with_reporter(snapshot: Value, output_path: &Path, verbose_inf
     Ok(())
 }
 
+fn write_snapshot_to_stdout(snapshot: Value, verbose_info: Vec<String>) -> Result<(), SkeletorError> {
+    let out_str = serde_yaml::to_string(&snapshot).map_err(|e| SkeletorError::Config(e.to_string()))?;
+    println!("{}", out_str);
+
+    if !verbose_info.is_empty() {
+        for info in verbose_info {
+            eprintln!("{}", info);
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use std::panic;
+    use std::path::Path;
 
     use super::*;
     use crate::test_utils::helpers::*;
+    use clap::ArgMatches;
 
     #[test]
     fn test_snapshot_directory_without_contents() {
@@ -331,7 +350,7 @@ mod tests {
         // Hidden file should be included.
         fs.create_file("src/.hidden.txt", "secret");
 
-        let (yaml_structure, binaries) = traverse_directory(&fs.root_path, false, None, false).unwrap();
+        let (yaml_structure, binaries) = traverse_directory(&fs.root_path, &fs.root_path, false, None, false).unwrap();
 
         if let Value::Mapping(map) = yaml_structure {
             // Expect "src" key exists.
@@ -352,7 +371,7 @@ mod tests {
         // Hidden file should be included.
         fs.create_file("src/.hidden.txt", "secret");
 
-        let (yaml_structure, binaries) = traverse_directory(&fs.root_path, true, None, false).unwrap();
+        let (yaml_structure, binaries) = traverse_directory(&fs.root_path, &fs.root_path, true, None, false).unwrap();
 
         if let Value::Mapping(map) = yaml_structure {
             // Expect "src" key exists.
@@ -391,7 +410,7 @@ mod tests {
         // Hidden file should be included.
         fs.create_file("src/.hidden.txt", "secret");
 
-        let (yaml_structure, binaries) = traverse_directory(&fs.root_path, false, None, false).unwrap();
+        let (yaml_structure, binaries) = traverse_directory(&fs.root_path, &fs.root_path, false, None, false).unwrap();
 
         if let Value::Mapping(map) = yaml_structure {
             // Expect "src" key exists.
@@ -444,6 +463,26 @@ mod tests {
             let result = run_snapshot(&sub_m);
             assert!(result.is_ok());
             assert!(output_file.exists());
+        } else {
+            panic!("Snapshot subcommand not found");
+        }
+    }
+
+    #[test]
+    fn test_run_snapshot_with_stdout_flag() {
+        let fs = TestFileSystem::new();
+
+        fs.create_file("src/index.js", "console.log('Hello');");
+
+        let args = vec![
+            fs.root_path.to_str().unwrap(),
+            "--stdout",
+        ];
+
+        if let Some(sub_m) = crate::test_utils::helpers::create_snapshot_matches(args) {
+            let result = run_snapshot(&sub_m);
+            assert!(result.is_ok());
+            assert!(!fs.root_path.join(".skeletorrc").exists());
         } else {
             panic!("Snapshot subcommand not found");
         }
@@ -609,12 +648,12 @@ temp/**
         
         if let Some(sub_m) = create_snapshot_matches(args) {
             let reporter = DefaultReporter::new();
-            let result = collect_ignore_patterns(&sub_m, &reporter);
+            let result = collect_ignore_spec_from_matches(&sub_m, &fs.root_path, &reporter);
             
             // Should succeed but skip the invalid pattern
             assert!(result.is_ok(), "collect_ignore_patterns failed: {:?}", result);
             
-            let patterns = result.unwrap();
+            let patterns = result.unwrap().patterns;
             // Should have valid patterns but not the invalid one
             assert!(patterns.contains(&"*.log".to_string()));
             assert!(patterns.contains(&"target/".to_string()));
@@ -639,7 +678,7 @@ temp/**
         
         if let Some(sub_m) = create_snapshot_matches(args) {
             let reporter = DefaultReporter::new();
-            let result = collect_ignore_patterns(&sub_m, &reporter);
+            let result = collect_ignore_spec_from_matches(&sub_m, &fs.root_path, &reporter);
             
             // Should fail for invalid direct patterns
             assert!(result.is_err(), "Expected collect_ignore_patterns to fail for invalid direct pattern");
@@ -648,7 +687,6 @@ temp/**
                 match error {
                     crate::errors::SkeletorError::InvalidIgnorePattern { pattern } => {
                         assert!(pattern.contains("{invalid_direct_pattern"));
-                        assert!(pattern.contains("unclosed alternate group"));
                     }
                     _ => panic!("Expected InvalidIgnorePattern error, got: {:?}", error),
                 }
@@ -677,11 +715,11 @@ temp/**
         
         if let Some(sub_m) = create_snapshot_matches(args) {
             let reporter = DefaultReporter::new();
-            let result = collect_ignore_patterns(&sub_m, &reporter);
+            let result = collect_ignore_spec_from_matches(&sub_m, &fs.root_path, &reporter);
             
             assert!(result.is_ok(), "collect_ignore_patterns should succeed");
             
-            let patterns = result.unwrap();
+            let patterns = result.unwrap().patterns;
             // Should have valid patterns from both file and direct
             assert!(patterns.contains(&"*.log".to_string()));
             assert!(patterns.contains(&"valid_pattern.txt".to_string()));
@@ -690,5 +728,20 @@ temp/**
             // Should NOT have invalid pattern
             assert!(!patterns.contains(&"{unclosed_brace".to_string()));
         }
+    }
+
+    fn collect_ignore_spec_from_matches(
+        matches: &ArgMatches,
+        root: &Path,
+        reporter: &DefaultReporter,
+    ) -> Result<IgnoreSpec, SkeletorError> {
+        let ignore_values = matches
+            .get_many::<String>("ignore")
+            .map(|vals| vals.map(|v| v.to_string()));
+        let ignore_files = matches
+            .get_many::<String>("ignore_file")
+            .map(|vals| vals.map(|v| v.to_string()));
+
+        collect_ignore_spec(root, ignore_values, ignore_files, reporter)
     }
 }

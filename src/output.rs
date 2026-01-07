@@ -74,8 +74,6 @@ pub enum OutputFormat {
     Plain,
     /// Colored output with emoji and formatting
     Pretty,
-    /// JSON output for machine consumption
-    Json,
 }
 
 /// Trait for reporting progress and results during operations
@@ -141,6 +139,65 @@ impl DefaultReporter {
         }
         let _ = write!(stdout, "{}", text);
         let _ = stdout.reset();
+    }
+
+    fn summarize_tasks(tasks: &[Task]) -> (usize, usize) {
+        tasks.iter().fold((0, 0), |(files, dirs), task| match task {
+            Task::File(_, _) => (files + 1, dirs),
+            Task::Dir(_) => (files, dirs + 1),
+        })
+    }
+
+    fn print_task_list(&self, tasks: &[Task]) {
+        for (i, task) in tasks.iter().enumerate() {
+            match task {
+                Task::File(path, _) => println!("  {}. 📄 {}", i + 1, path.display()),
+                Task::Dir(path) => println!("  {}. 📁 {}", i + 1, path.display()),
+            }
+        }
+    }
+
+    fn print_task_preview(&self, tasks: &[Task], limit: usize, header: &str) {
+        if !header.is_empty() {
+            println!("{}", header);
+        }
+        for (i, task) in tasks.iter().take(limit).enumerate() {
+            match task {
+                Task::File(path, _) => println!("  {}. 📄 {}", i + 1, path.display()),
+                Task::Dir(path) => println!("  {}. 📁 {}", i + 1, path.display()),
+            }
+        }
+        if tasks.len() > limit {
+            println!("  ... and {} more operations", tasks.len() - limit);
+        }
+    }
+
+    fn print_string_list(
+        &self,
+        title: &str,
+        items: &[String],
+        verbose: bool,
+        limit: usize,
+        tip: Option<&str>,
+    ) {
+        if items.is_empty() {
+            return;
+        }
+
+        println!("{}", title);
+        if verbose || items.len() <= limit {
+            for item in items {
+                println!("  • {}", item);
+            }
+        } else {
+            for item in items.iter().take(limit) {
+                println!("  • {}", item);
+            }
+            println!("  ... and {} more", items.len() - limit);
+            if let Some(tip) = tip {
+                println!("tip: {}", tip);
+            }
+        }
     }
 }
 
@@ -237,15 +294,7 @@ impl Reporter for DefaultReporter {
             OutputFormat::Pretty => {
                 println!("Dry run enabled. Summary of planned operations:");
                 
-                // Count files and directories
-                let mut file_count = 0;
-                let mut dir_count = 0;
-                for task in tasks.iter() {
-                    match task {
-                        Task::File(_, _) => file_count += 1,
-                        Task::Dir(_) => dir_count += 1,
-                    }
-                }
+                let (file_count, dir_count) = Self::summarize_tasks(tasks);
                 
                 println!("  • {} files to be created", file_count);
                 println!("  • {} directories to be created", dir_count);
@@ -255,35 +304,10 @@ impl Reporter for DefaultReporter {
                 if !tasks.is_empty() {
                     if verbose {
                         println!("\nComplete list of operations:");
-                        for (i, task) in tasks.iter().enumerate() {
-                            match task {
-                                Task::Dir(path) => {
-                                    print!("  {}. 📁 ", i + 1);
-                                    println!("{}", path.display());
-                                },
-                                Task::File(path, _) => {
-                                    print!("  {}. 📄 ", i + 1);
-                                    println!("{}", path.display());
-                                },
-                            }
-                        }
+                        self.print_task_list(tasks);
                     } else {
                         println!("\nSample of operations:");
-                        for (i, task) in tasks.iter().take(5).enumerate() {
-                            match task {
-                                Task::Dir(path) => {
-                                    print!("  {}. 📁 ", i + 1);
-                                    println!("{}", path.display());
-                                },
-                                Task::File(path, _) => {
-                                    print!("  {}. 📄 ", i + 1);
-                                    println!("{}", path.display());
-                                },
-                            }
-                        }
-                        if tasks.len() > 5 {
-                            println!("  ... and {} more operations", tasks.len() - 5);
-                        }
+                        self.print_task_preview(tasks, 5, "");
                         println!("\ntip: Use --verbose to see the complete operation list");
                     }
                 }
@@ -308,12 +332,7 @@ impl Reporter for DefaultReporter {
         println!();
         
         // Summary
-        let (file_count, dir_count) = tasks.iter().fold((0, 0), |(files, dirs), task| {
-            match task {
-                Task::File(_, _) => (files + 1, dirs),
-                Task::Dir(_) => (files, dirs + 1),
-            }
-        });
+        let (file_count, dir_count) = Self::summarize_tasks(tasks);
         
         println!("Summary of planned operations:");
         println!("  • {} files to be created", file_count);
@@ -324,69 +343,33 @@ impl Reporter for DefaultReporter {
         // Operations list
         if verbose && !tasks.is_empty() {
             println!("Complete list of operations:");
-            for (i, task) in tasks.iter().enumerate() {
-                match task {
-                    Task::File(path, _) => {
-                        println!("  {}. 📄 {}", i + 1, path.display());
-                    }
-                    Task::Dir(path) => {
-                        println!("  {}. 📁 {}", i + 1, path.display());
-                    }
-                }
-            }
+            self.print_task_list(tasks);
         } else if !tasks.is_empty() {
-            println!("Operations preview (showing first 3):");
-            for (i, task) in tasks.iter().take(3).enumerate() {
-                match task {
-                    Task::File(path, _) => {
-                        println!("  {}. 📄 {}", i + 1, path.display());
-                    }
-                    Task::Dir(path) => {
-                        println!("  {}. 📁 {}", i + 1, path.display());
-                    }
-                }
-            }
-            if tasks.len() > 3 {
-                println!("  ... and {} more operations", tasks.len() - 3);
-            }
+            self.print_task_preview(tasks, 3, "Operations preview (showing first 3):");
         }
         
         // Binary files
         if !binary_files.is_empty() {
             println!();
-            if verbose {
-                println!("Binary files that would be {}:", verb);
-                for file in binary_files {
-                    println!("  • {}", file);
-                }
-            } else {
-                println!("Binary files that would be {}:", verb);
-                for file in binary_files.iter().take(3) {
-                    println!("  • {}", file);
-                }
-                if binary_files.len() > 3 {
-                    println!("  ... and {} more binary files", binary_files.len() - 3);
-                }
-            }
+            self.print_string_list(
+                &format!("Binary files that would be {}:", verb),
+                binary_files,
+                verbose,
+                3,
+                None,
+            );
         }
         
         // Ignore patterns
         if !ignore_patterns.is_empty() {
             println!();
-            if verbose {
-                println!("Ignore patterns that would be used:");
-                for pattern in ignore_patterns {
-                    println!("  • {}", pattern);
-                }
-            } else {
-                println!("Ignore patterns that would be used:");
-                for pattern in ignore_patterns.iter().take(3) {
-                    println!("  • {}", pattern);
-                }
-                if ignore_patterns.len() > 3 {
-                    println!("  ... and {} more ignore patterns", ignore_patterns.len() - 3);
-                }
-            }
+            self.print_string_list(
+                "Ignore patterns that would be used:",
+                ignore_patterns,
+                verbose,
+                3,
+                None,
+            );
         }
         
         // Footer with separator
@@ -416,19 +399,13 @@ impl Reporter for DefaultReporter {
                 // Show skipped files with helpful tip
                 if result.files_skipped > 0 {
                     println!();
-                    if verbose || result.skipped_files_list.len() <= 3 {
-                        println!("Files skipped (already exist):");
-                        for file in &result.skipped_files_list {
-                            println!("  • {}", file);
-                        }
-                    } else {
-                        println!("Files skipped (already exist):");
-                        for file in result.skipped_files_list.iter().take(3) {
-                            println!("  • {}", file);
-                        }
-                        println!("  ... and {} more files", result.skipped_files_list.len() - 3);
-                        println!("tip: Use --verbose to see all skipped files");
-                    }
+                    self.print_string_list(
+                        "Files skipped (already exist):",
+                        &result.skipped_files_list,
+                        verbose,
+                        3,
+                        Some("Use --verbose to see all skipped files"),
+                    );
                     println!();
                     self.write_colored_inline("tip: ", Some(Color::Yellow));
                     println!("Use --overwrite to update existing files");
@@ -437,19 +414,13 @@ impl Reporter for DefaultReporter {
                 // Show overwritten files
                 if result.files_overwritten > 0 {
                     println!();
-                    if verbose || result.overwritten_files_list.len() <= 3 {
-                        println!("Files updated by --overwrite:");
-                        for file in &result.overwritten_files_list {
-                            println!("  • {}", file);
-                        }
-                    } else {
-                        println!("Files updated by --overwrite:");
-                        for file in result.overwritten_files_list.iter().take(3) {
-                            println!("  • {}", file);
-                        }
-                        println!("  ... and {} more files", result.overwritten_files_list.len() - 3);
-                        println!("tip: Use --verbose to see all overwritten files");
-                    }
+                    self.print_string_list(
+                        "Files updated by --overwrite:",
+                        &result.overwritten_files_list,
+                        verbose,
+                        3,
+                        Some("Use --verbose to see all overwritten files"),
+                    );
                 }
                 
                 println!("------------------------------------------");
@@ -484,21 +455,13 @@ impl Reporter for DefaultReporter {
                 println!("{:?}", result.output_path);
                 
                 // Show binary files excluded information if any
-                if !result.binary_files_list.is_empty() {
-                    println!();
-                    if result.binary_files_list.len() <= 3 {
-                        println!("Binary files excluded:");
-                        for file in &result.binary_files_list {
-                            println!("  • {}", file);
-                        }
-                    } else {
-                        println!("Binary files excluded:");
-                        for file in result.binary_files_list.iter().take(3) {
-                            println!("  • {}", file);
-                        }
-                        println!("  ... and {} more binary files", result.binary_files_list.len() - 3);
-                    }
-                }
+                self.print_string_list(
+                    "Binary files excluded:",
+                    &result.binary_files_list,
+                    true,
+                    3,
+                    None,
+                );
             },
             _ => {
                 println!("Snapshot complete!");

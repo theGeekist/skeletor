@@ -79,7 +79,7 @@ pub fn apply_config(
     dry_run: bool,
 ) -> Result<ApplyResult, SkeletorError> {
     let start_time = Instant::now();
-    let tasks = tasks::traverse_structure(target_dir, &config.directories);
+    let tasks = tasks::traverse_structure(target_dir, &config.directories)?;
     
     if dry_run {
         // For dry run, just return the task count
@@ -139,20 +139,20 @@ pub fn build_cli() -> Command {
                     Arg::new("dry_run")
                         .short('d')
                         .long("dry-run")
-                        .help("Preview changes without creating files - shows clean summary by default")
+                        .help("Preview changes without writing files (summary by default)")
                         .action(ArgAction::SetTrue),
                 )
                 .arg(
                     Arg::new("verbose")
                         .short('v')
                         .long("verbose")
-                        .help("Show full detailed operation listing during dry-run (useful for debugging)")
+                        .help("Show full operation listing during dry-run")
                         .action(ArgAction::SetTrue),
                 ),
         )
         .subcommand(
             Command::new("snapshot")
-                .about("Creates a .skeletorrc snapshot from an existing folder\n\nEXAMPLES:\n  skeletor snapshot my-project              # Print YAML to stdout\n  skeletor snapshot my-project -o config.yml # Save to file\n  skeletor snapshot src/ -i \"*.log\" -i target/ # Ignore build artifacts\n  skeletor snapshot --dry-run my-project    # Preview snapshot (summary)\n  skeletor snapshot --dry-run --verbose my-project # Preview with details\n\nIMPORTANT: Quote glob patterns to prevent shell expansion:\n  ✓ skeletor snapshot -i \"*.log\" -i \"src/**/*.tmp\" .\n  ✗ skeletor snapshot -i *.log -i src/**/*.tmp .  # Shell expands patterns")
+                .about("Creates a .skeletorrc snapshot from an existing folder\n\nEXAMPLES:\n  skeletor snapshot my-project               # Write .skeletorrc\n  skeletor snapshot my-project -o config.yml # Save to file\n  skeletor snapshot my-project --stdout      # Print YAML to stdout\n  skeletor snapshot src/ -i \"*.log\" -i target/ # Ignore build artifacts\n  skeletor snapshot --dry-run my-project     # Preview snapshot (summary)\n  skeletor snapshot --dry-run --verbose my-project # Preview with details\n\nIMPORTANT: Quote glob patterns to prevent shell expansion:\n  ✓ skeletor snapshot -i \"*.log\" -i \"src/**/*.tmp\" .\n  ✗ skeletor snapshot -i *.log -i src/**/*.tmp .  # Shell expands patterns")
                 .arg(
                     Arg::new("source")
                         .value_name("FOLDER")
@@ -164,35 +164,48 @@ pub fn build_cli() -> Command {
                         .short('o')
                         .long("output")
                         .value_name("FILE")
-                        .help("Save snapshot YAML to a file (prints to stdout if omitted)"),
+                        .help("Save snapshot YAML to a file (defaults to .skeletorrc)"),
+                )
+                .arg(
+                    Arg::new("stdout")
+                        .long("stdout")
+                        .help("Print snapshot YAML to stdout instead of writing to a file")
+                        .action(ArgAction::SetTrue)
+                        .conflicts_with("output"),
                 )
                 .arg(
                     Arg::new("include_contents")
                         .long("include-contents")
                         .help("Include file contents for text files (binary files will be empty)")
-                        .action(ArgAction::SetTrue)
-                        .default_value("true"),
+                        .action(ArgAction::SetTrue),
                 )
                 .arg(
                     Arg::new("ignore")
                         .short('i')
                         .long("ignore")
                         .value_name("PATTERN_OR_FILE")
-                        .help("Exclude files from snapshot (can be used multiple times)\n  • Glob patterns: \"*.log\", \"target/*\", \"node_modules/\" (QUOTE THEM!)\n  • Ignore files: \".gitignore\", \".dockerignore\"\n  • IMPORTANT: Always quote glob patterns to prevent shell expansion")
+                        .help("Exclude files from snapshot (can be used multiple times)\n  • Patterns: \"*.log\", \"target/*\", \"node_modules/\" (QUOTE THEM!)\n  • Files: \".gitignore\", \".dockerignore\" (auto-detected)")
+                        .action(ArgAction::Append),
+                )
+                .arg(
+                    Arg::new("ignore_file")
+                        .long("ignore-file")
+                        .value_name("FILE")
+                        .help("Read ignore patterns from a file (use multiple times)")
                         .action(ArgAction::Append),
                 )
                 .arg(
                     Arg::new("verbose")
                         .short('v')
                         .long("verbose")
-                        .help("Show detailed ignore pattern matching and file processing info")
+                        .help("Show detailed matching and file processing info")
                         .action(ArgAction::SetTrue),
                 )
                 .arg(
                     Arg::new("dry_run")
                         .short('d')
                         .long("dry-run")
-                        .help("Preview snapshot without creating files - shows clean summary by default")
+                        .help("Preview snapshot without writing files (summary by default)")
                         .action(ArgAction::SetTrue),
                 )
                 .arg(

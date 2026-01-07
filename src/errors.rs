@@ -29,6 +29,9 @@ pub enum SkeletorError {
     
     #[error("invalid ignore pattern: '{pattern}'\ntip: Check glob pattern syntax (e.g., '*.log', 'target/*')")]
     InvalidIgnorePattern { pattern: String },
+
+    #[error("invalid path in configuration: '{path}'\ntip: Remove absolute paths and '..' segments from YAML keys")]
+    InvalidPath { path: String },
 }
 
 impl SkeletorError {
@@ -65,6 +68,11 @@ impl SkeletorError {
     /// Creates a missing config key error
     pub fn missing_config_key(key: impl Into<String>) -> Self {
         Self::MissingConfigKey { key: key.into() }
+    }
+
+    /// Creates an invalid path error
+    pub fn invalid_path(path: impl Into<String>) -> Self {
+        Self::InvalidPath { path: path.into() }
     }
 }
 
