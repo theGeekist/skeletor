@@ -1,10 +1,12 @@
-use crate::config::{default_file_path, read_config};
+use crate::config::default_file_path;
 use crate::errors::SkeletorError;
 use crate::output::{DefaultReporter, Reporter, SimpleApplyResult};
 use crate::tasks::{create_files_and_directories, traverse_structure, Task};
 use clap::ArgMatches;
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use log::info;
 use serde_yaml::Value;
+use std::path::Path;
 use std::time::Instant;
 
 /// Extract binary files list from YAML if present
@@ -38,7 +40,69 @@ fn extract_ignore_patterns_from_yaml(yaml_config: &Value) -> Vec<String> {
 /// Handles dry-run output display using the Reporter system for consistent formatting
 fn display_dry_run_output(tasks: &[Task], verbose: bool, binary_files: &[String], ignore_patterns: &[String]) {
     let reporter = DefaultReporter::new();
-            reporter.dry_run_preview_comprehensive(tasks, verbose, binary_files, ignore_patterns, "applied");
+    reporter.dry_run_preview_comprehensive(tasks, verbose, binary_files, ignore_patterns, "applied");
+}
+
+fn build_ignore_matcher(patterns: &[String], root: &Path) -> Result<Option<Gitignore>, SkeletorError> {
+    if patterns.is_empty() {
+        return Ok(None);
+    }
+
+    let mut builder = GitignoreBuilder::new(root);
+    for pattern in patterns {
+        builder
+            .add_line(None, pattern)
+            .map_err(|e| SkeletorError::InvalidIgnorePattern {
+                pattern: format!("{} ({})", pattern, e),
+            })?;
+    }
+
+    builder
+        .build()
+        .map(Some)
+        .map_err(|e| SkeletorError::InvalidIgnorePattern {
+            pattern: format!("Failed to compile ignore patterns: {}", e),
+        })
+}
+
+fn filter_tasks_by_ignore(
+    tasks: &[Task],
+    output_dir: &Path,
+    matcher: Option<&Gitignore>,
+) -> Vec<Task> {
+    if matcher.is_none() {
+        return tasks.to_vec();
+    }
+
+    let matcher = matcher.unwrap();
+    tasks
+        .iter()
+        .filter_map(|task| {
+            let (path, is_dir) = match task {
+                Task::Dir(path) => (path, true),
+                Task::File(path, _) => (path, false),
+            };
+
+            let relative = path
+                .strip_prefix(output_dir)
+                .unwrap_or(path)
+                .to_string_lossy()
+                .replace("\\", "/");
+
+            let is_ignored = matcher
+                .matched_path_or_any_parents(Path::new(&relative), is_dir)
+                .is_ignore();
+
+            if is_ignored {
+                return None;
+            }
+
+            Some(match task {
+                Task::Dir(path) => Task::Dir(path.clone()),
+                Task::File(path, content) => Task::File(path.clone(), content.clone()),
+            })
+        })
+        .collect()
 }
 
 /// Parses CLI arguments and extracts apply-specific configuration
@@ -75,20 +139,15 @@ pub fn run_apply(matches: &ArgMatches) -> Result<(), SkeletorError> {
     info!("Reading input file: {:?}", config.input_path);
     info!("Overwrite flag: {:?}", config.overwrite);
 
-    // Read the full YAML document to access binary_files and ignore_patterns
     let full_yaml_doc: Value = crate::utils::read_yaml_file(&config.input_path)?;
-    
-    // Extract directories section for processing
-    let yaml_config = read_config(&config.input_path)?;
-
-    if yaml_config.is_null() {
-        return Err(SkeletorError::Config(
-            "'directories' key is required in the YAML file".into(),
-        ));
-    }
+    let yaml_config = full_yaml_doc
+        .get("directories")
+        .and_then(Value::as_mapping)
+        .ok_or_else(|| SkeletorError::missing_config_key("directories"))?;
+    let yaml_config = Value::Mapping(yaml_config.clone());
 
     let start_time = Instant::now();
-    let tasks = traverse_structure(&config.output_dir, &yaml_config);
+    let tasks = traverse_structure(&config.output_dir, &yaml_config)?;
     
     // Extract binary files and ignore patterns from the full YAML document
     let binary_files = extract_binary_files_from_yaml(&full_yaml_doc);
@@ -97,25 +156,35 @@ pub fn run_apply(matches: &ArgMatches) -> Result<(), SkeletorError> {
     info!("Extracted {} binary files: {:?}", binary_files.len(), binary_files);
     info!("Extracted {} ignore patterns: {:?}", ignore_patterns.len(), ignore_patterns);
 
+    let ignore_matcher = build_ignore_matcher(&ignore_patterns, &config.output_dir)?;
+    let filtered_tasks = filter_tasks_by_ignore(&tasks, &config.output_dir, ignore_matcher.as_ref());
+
+    if filtered_tasks.len() != tasks.len() {
+        info!(
+            "Ignored {} task(s) via ignore patterns",
+            tasks.len().saturating_sub(filtered_tasks.len())
+        );
+    }
+
     if config.dry_run {
-        display_dry_run_output(&tasks, config.verbose, &binary_files, &ignore_patterns);
+        display_dry_run_output(&filtered_tasks, config.verbose, &binary_files, &ignore_patterns);
     } else {
         let reporter = DefaultReporter::new();
         
         if config.verbose {
-            reporter.verbose_operation_preview(&tasks);
+            reporter.verbose_operation_preview(&filtered_tasks);
         } else {
-            reporter.operation_start("apply", &format!("Creating {} tasks", tasks.len()));
+            reporter.operation_start("apply", &format!("Creating {} tasks", filtered_tasks.len()));
         }
         
-        let creation_result = create_files_and_directories(&tasks, config.overwrite)?;
+        let creation_result = create_files_and_directories(&filtered_tasks, config.overwrite)?;
         let duration = start_time.elapsed();
         
         let apply_result = SimpleApplyResult::with_skipped_and_overwritten(
             creation_result.files_created,
             creation_result.dirs_created,
             duration,
-            tasks.len(),
+            filtered_tasks.len(),
             creation_result.files_skipped,
             creation_result.skipped_files_list,
             creation_result.files_overwritten,
@@ -272,6 +341,7 @@ mod tests {
     fn test_apply_with_verbose_flag() {
         let fs = TestFileSystem::new();
         
+        let _guard = cwd_lock();
         // CRITICAL SAFETY: Change to temp directory to avoid overwriting project files
         let original_dir = std::env::current_dir().expect("Failed to get current directory");
         std::env::set_current_dir(&fs.root_path).expect("Failed to change to temp directory");
@@ -295,6 +365,7 @@ mod tests {
     fn test_apply_with_overwrite_flag() {
         let fs = TestFileSystem::new();
         
+        let _guard = cwd_lock();
         // CRITICAL SAFETY: Change to temp directory to avoid overwriting project files
         let original_dir = std::env::current_dir().expect("Failed to get current directory");
         std::env::set_current_dir(&fs.root_path).expect("Failed to change to temp directory");
@@ -383,6 +454,34 @@ ignore_patterns:
         if let Some(sub_m) = create_apply_matches(args) {
             assert_command_succeeds(|| crate::apply::run_apply(&sub_m));
         }
+    }
+
+    #[test]
+    fn test_apply_respects_ignore_patterns() {
+        let fs = TestFileSystem::new();
+        let output_dir = fs.path("output");
+        let config_content = r#"
+directories:
+  root:
+    keep.txt: "keep"
+    ignored.txt: "ignore"
+ignore_patterns:
+  - "root/ignored.txt"
+"#;
+        let config_file = fs.create_config_from_content("ignore.yml", config_content);
+
+        let args = vec![
+            config_file.to_str().unwrap(),
+            "-o",
+            output_dir.to_str().unwrap(),
+        ];
+
+        if let Some(sub_m) = create_apply_matches(args) {
+            assert_command_succeeds(|| crate::apply::run_apply(&sub_m));
+        }
+
+        assert!(output_dir.join("root/keep.txt").exists());
+        assert!(!output_dir.join("root/ignored.txt").exists());
     }
 
     #[test]

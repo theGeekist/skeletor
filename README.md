@@ -115,11 +115,14 @@ Capture a YAML snapshot of an existing folder.
 
 **Create a Snapshot**
 ```bash
-# Print YAML to stdout
+# Write .skeletorrc
 skeletor snapshot .
 
 # Save to file
 skeletor snapshot . -o my-template.yml
+
+# Print YAML to stdout
+skeletor snapshot . --stdout
 ```
 
 **Ignore files and add a note**
@@ -137,9 +140,11 @@ skeletor snapshot --dry-run --verbose .
 ```
 
 **Common Options**
-- `-o custom.yml` → Save snapshot to file (prints to stdout if omitted)
+- `-o custom.yml` → Save snapshot to file (defaults to `.skeletorrc`)
+- `--stdout` → Print snapshot YAML to stdout instead of writing a file
 - `-i "*.log"` → Exclude files based on patterns (can be used multiple times)
-- `-i .gitignore` → Use .gitignore file patterns for exclusion
+- `-i .gitignore` → Use .gitignore file patterns for exclusion (auto-detected)
+- `--ignore-file .gitignore` → Explicitly read ignore patterns from a file
 - `-n "Initial snapshot"` → Add custom notes to the snapshot
 - `--include-contents` → Include file contents for text files (binary files will be empty)
 - `--verbose` → Show detailed ignore pattern matching and file processing info

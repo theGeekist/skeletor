@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-header -->
 
+## [Unreleased] - ReleaseDate
+
+### Added
+- Snapshot `--stdout` output flag and `--ignore-file` for explicit ignore file inputs
+- Apply now honors `ignore_patterns` from YAML when generating files
+- Dry-run output now reports destination and include-contents state
+
+### Changed
+- Ignore pattern handling now follows `.gitignore` semantics for snapshot and apply
+- Output formatting deduplicated for consistent summaries and list rendering
+- `blacklist` terminology removed in favor of `ignore_patterns`
+
+### Fixed
+- Prevented unsafe path traversal in YAML task keys
+- Stabilized cwd-changing tests with a shared lock
+- Pinned dependencies to stable-compatible versions
+
 ## [0.3.8] - 2025-09-27
 
 ### Fixed

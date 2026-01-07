@@ -41,11 +41,11 @@ pub fn run_info(matches: &ArgMatches) -> Result<(), SkeletorError> {
         println!("  No stats available.");
     }
 
-    if let Some(blacklist) = yaml_docs.get("blacklist").and_then(Value::as_sequence) {
-        let patterns: Vec<&str> = blacklist.iter().filter_map(Value::as_str).collect();
-        println!("  Blacklist patterns: {:?}", patterns);
+    if let Some(patterns) = yaml_docs.get("ignore_patterns").and_then(Value::as_sequence) {
+        let patterns: Vec<&str> = patterns.iter().filter_map(Value::as_str).collect();
+        println!("  Ignore patterns: {:?}", patterns);
     } else {
-        println!("  No blacklist information available.");
+        println!("  No ignore patterns available.");
     }
 
     Ok(())
@@ -61,6 +61,7 @@ mod tests {
     fn test_run_info_defaults_to_local_config() {
         let fs = TestFileSystem::new();
         
+        let _guard = cwd_lock();
         // Create .skeletorrc with metadata
         let config_content = r#"
 created: "2020-01-01T00:00:00Z"
@@ -72,7 +73,7 @@ directories:
 stats:
   files: "1"
   directories: "1"
-blacklist:
+ignore_patterns:
   - "*.tmp"
 "#;
         let _config_path = fs.create_file(".skeletorrc", config_content);
@@ -103,7 +104,7 @@ directories:
 stats:
   files: "1"
   directories: "1"
-blacklist:
+ignore_patterns:
   - "*.tmp"
 "#);
 
@@ -139,7 +140,7 @@ blacklist:
     }
 
     #[test]
-    fn test_run_info_with_stats_and_blacklist() {
+    fn test_run_info_with_stats_and_ignore_patterns() {
         let fs = TestFileSystem::new();
         let config_path = fs.create_file("config.yaml", r#"
 created: "2020-01-01T00:00:00Z"
@@ -151,7 +152,7 @@ directories:
 stats:
   files: "1"
   directories: "1"
-blacklist:
+ignore_patterns:
   - "*.tmp"
 "#);
 

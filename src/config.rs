@@ -18,7 +18,7 @@ pub struct SkeletorMetadata {
     pub updated: Option<String>,
     pub generated_comments: Option<String>,
     pub stats: Option<(usize, usize)>, // (files, directories)
-    pub blacklist: Option<Vec<String>>,
+    pub ignore_patterns: Option<Vec<String>>,
 }
 
 #[allow(dead_code)]
@@ -65,7 +65,7 @@ impl SkeletorConfig {
                 let directories = stats.get("directories")?.as_u64()? as usize;
                 Some((files, directories))
             }),
-            blacklist: yaml_doc.get("blacklist").and_then(|v| {
+            ignore_patterns: yaml_doc.get("ignore_patterns").and_then(|v| {
                 v.as_sequence()?.iter()
                     .map(|item| item.as_str().map(|s| s.to_string()))
                     .collect::<Option<Vec<_>>>()
@@ -151,7 +151,7 @@ mod tests {
         stats:
           files: 5
           directories: 3
-        blacklist:
+        ignore_patterns:
           - "*.tmp"
           - "node_modules"
         "#;
@@ -163,7 +163,7 @@ mod tests {
         assert_eq!(metadata.updated, Some("2023-01-02".to_string()));
         assert_eq!(metadata.generated_comments, Some("Auto-generated".to_string()));
         assert_eq!(metadata.stats, Some((5, 3)));
-        assert_eq!(metadata.blacklist, Some(vec!["*.tmp".to_string(), "node_modules".to_string()]));
+        assert_eq!(metadata.ignore_patterns, Some(vec!["*.tmp".to_string(), "node_modules".to_string()]));
     }
 
     #[test]
@@ -183,7 +183,7 @@ mod tests {
         assert_eq!(metadata.created, Some("2023-01-01".to_string()));
         assert_eq!(metadata.updated, None);
         assert_eq!(metadata.stats, None); // Missing directories field
-        assert_eq!(metadata.blacklist, None);
+        assert_eq!(metadata.ignore_patterns, None);
     }
 
     #[test]

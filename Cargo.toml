@@ -17,7 +17,8 @@ keywords = ["cli", "scaffolding", "codegen", "automation", "rust"]
 chrono = "0.4.39"
 clap = {version = "4.5.20", features = ["derive"]}
 env_logger = "0.11.5"
-globset = "0.4.15"
+globset = "=0.4.16"
+ignore = "=0.4.23"
 log = "0.4.22"
 serde_yaml = "0.9.34"
 thiserror = "1.0.64"
@@ -43,4 +44,3 @@ pre-release-replacements = [
   {file="CHANGELOG.md", search="Unreleased", replace="{{version}}"},
   {file="CHANGELOG.md", search="ReleaseDate", replace="{{date}}"},
 ]
-

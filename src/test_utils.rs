@@ -11,7 +11,17 @@ pub mod helpers {
     use clap::ArgMatches;
     use std::fs;
     use std::path::{Path, PathBuf};
+    use std::sync::{Mutex, OnceLock};
     use tempfile::{TempDir, tempdir};
+
+    static CWD_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+    pub fn cwd_lock() -> std::sync::MutexGuard<'static, ()> {
+        CWD_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .expect("Failed to lock current directory mutex")
+    }
 
     /// Helper for creating CLI matches for a given subcommand with arguments
     pub fn create_cli_matches_for_subcommand(subcommand: &str, args: Vec<&str>) -> Option<ArgMatches> {
