@@ -192,3 +192,42 @@ jobs:
       tag: ${{ needs.preflight.outputs.tag }}
     secrets:
       GH_PAT: ${{ secrets.GH_PAT }}
+
+  restore-unreleased:
+    needs: [preflight, build-and-release]
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Restore Unreleased header if missing
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if rg -n "^## \\[Unreleased\\]" CHANGELOG.md >/dev/null 2>&1; then
+            echo "Unreleased header already present."
+            exit 0
+          fi
+          awk '
+            { print }
+            /<!-- next-header -->/ {
+              print ""
+              print "## [Unreleased] - ReleaseDate"
+              print ""
+            }
+          ' CHANGELOG.md > CHANGELOG.md.tmp
+          mv CHANGELOG.md.tmp CHANGELOG.md
+      - name: Commit restored Unreleased header
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if git diff --quiet -- CHANGELOG.md; then
+            echo "No CHANGELOG updates to commit."
+            exit 0
+          fi
+          git config user.name "skeletor-bot"
+          git config user.email "skeletor-bot@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "chore: restore Unreleased section"
+          git push origin main
