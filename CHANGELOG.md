@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-header -->
 
-## [Unreleased] - ReleaseDate
+## [0.3.9] - 2026-01-08
 
 ### Added
 - Snapshot `--stdout` output flag and `--ignore-file` for explicit ignore file inputs
