@@ -49,13 +49,27 @@ fi
 # Find the first version line after "## [Unreleased] - ReleaseDate"
 CHANGELOG_VERSION=$(awk '
     /^## \[Unreleased\] - ReleaseDate/ { found_unreleased = 1; next }
-    found_unreleased && /^## \[[0-9]+\.[0-9]+\.[0-9]+\]/ { 
-        gsub(/^## \[/, ""); 
-        gsub(/\].*/, ""); 
-        print; 
-        exit 
+    found_unreleased && /^## \[[0-9]+\.[0-9]+\.[0-9]+\]/ {
+        gsub(/^## \[/, "");
+        gsub(/\].*/, "");
+        print;
+        exit
     }
 ' CHANGELOG.md)
+
+MISSING_UNRELEASED=0
+if [ -z "$CHANGELOG_VERSION" ]; then
+    # Fallback: take the first version header in the file (release in progress)
+    CHANGELOG_VERSION=$(awk '
+        /^## \[[0-9]+\.[0-9]+\.[0-9]+\]/ {
+            gsub(/^## \[/, "");
+            gsub(/\].*/, "");
+            print;
+            exit
+        }
+    ' CHANGELOG.md)
+    MISSING_UNRELEASED=1
+fi
 
 if [ -z "$CHANGELOG_VERSION" ]; then
     print_status $RED "❌ ERROR: Could not find version in CHANGELOG.md after ## [Unreleased] section"
@@ -74,16 +88,27 @@ if [ "$LATEST_VERSION" = "$CHANGELOG_VERSION" ]; then
     print_status $GREEN "🎯 CHANGELOG.md shows $CHANGELOG_VERSION as latest released (matches git tag v$LATEST_VERSION)"
     print_status $GREEN "🚀 Safe to proceed with commit/release"
     exit 0
-else
-    print_status $RED "❌ VERSION MISMATCH DETECTED!"
-    echo ""
-    print_status $RED "Expected latest version $LATEST_VERSION after Unreleased. Found $CHANGELOG_VERSION"
-    echo ""
-    print_status $YELLOW "💡 Resolution steps:"
-    echo "   1. CHANGELOG.md should show the latest released version ($LATEST_VERSION) as topmost"
-    echo "   2. Ensure git tag v$LATEST_VERSION exists and matches changelog"
-    echo "   3. Run 'cargo release' to properly synchronize versions"
-    echo ""
-    print_status $RED "🛑 Blocking commit/release due to version inconsistency"
-    exit 1
 fi
+
+# Allow release-in-progress: changelog already bumped to Cargo.toml version
+CARGO_VERSION=$(awk -F\" '/^version =/ {print $2; exit}' Cargo.toml)
+if [ "$MISSING_UNRELEASED" -eq 1 ] && [ "$CHANGELOG_VERSION" = "$CARGO_VERSION" ]; then
+    NEWEST=$(printf '%s\n' "$LATEST_VERSION" "$CHANGELOG_VERSION" | sort -V | tail -n1)
+    if [ "$NEWEST" = "$CHANGELOG_VERSION" ] && [ "$CHANGELOG_VERSION" != "$LATEST_VERSION" ]; then
+        print_status $YELLOW "⚠️  Release in progress: changelog version $CHANGELOG_VERSION matches Cargo.toml"
+        print_status $YELLOW "🧩 Latest tag is v$LATEST_VERSION; proceeding with release"
+        exit 0
+    fi
+fi
+
+print_status $RED "❌ VERSION MISMATCH DETECTED!"
+echo ""
+print_status $RED "Expected latest version $LATEST_VERSION after Unreleased. Found $CHANGELOG_VERSION"
+echo ""
+print_status $YELLOW "💡 Resolution steps:"
+echo "   1. CHANGELOG.md should show the latest released version ($LATEST_VERSION) as topmost"
+echo "   2. Ensure git tag v$LATEST_VERSION exists and matches changelog"
+echo "   3. Run 'cargo release' to properly synchronize versions"
+echo ""
+print_status $RED "🛑 Blocking commit/release due to version inconsistency"
+exit 1
