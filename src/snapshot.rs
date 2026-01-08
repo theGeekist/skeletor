@@ -30,7 +30,7 @@ impl SnapshotConfig {
         Self {
             source_path: PathBuf::from(matches.get_one::<String>("source").unwrap()),
             output_path: default_file_path(matches.get_one::<String>("output")),
-            include_contents: matches.get_flag("include_contents"),
+            include_contents: !matches.get_flag("exclude_contents"),
             dry_run: matches.get_flag("dry_run"),
             verbose: matches.get_flag("verbose"),
             user_note: matches.get_one::<String>("note").map(|s| s.to_string()),
