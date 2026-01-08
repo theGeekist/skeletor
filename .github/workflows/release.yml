@@ -9,26 +9,103 @@ on:
       tag:
         description: "Tag to release (e.g., v0.3.9)"
         required: true
+        type: string
+      publish_crates:
+        description: "Publish to crates.io"
+        required: false
+        default: true
+        type: boolean
+      update_tap:
+        description: "Update Homebrew tap"
+        required: false
+        default: true
+        type: boolean
 
 permissions:
-  contents: write  # create/edit GitHub Releases
-  id-token: write  # (optional) for provenance/signing later
+  contents: write
+  id-token: write
 
 jobs:
-  build-and-publish:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.vars.outputs.tag }}
+      publish_crates: ${{ steps.vars.outputs.publish_crates }}
+      update_tap: ${{ steps.vars.outputs.update_tap }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Resolve inputs
+        id: vars
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          TAG="${{ inputs.tag || github.ref_name }}"
+          [[ -n "$TAG" ]] || { echo "Missing tag"; exit 1; }
+
+          PUBLISH="${{ inputs.publish_crates }}"
+          UPDATE_TAP="${{ inputs.update_tap }}"
+
+          if [[ -z "$PUBLISH" ]]; then
+            PUBLISH=true
+          fi
+          if [[ -z "$UPDATE_TAP" ]]; then
+            UPDATE_TAP=true
+          fi
+
+          {
+            echo "tag=$TAG"
+            echo "publish_crates=$PUBLISH"
+            echo "update_tap=$UPDATE_TAP"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check version consistency
+        shell: bash
+        run: scripts/check-version-consistency.sh
+
+      - name: Validate tag matches Cargo.toml
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          TAG="${{ steps.vars.outputs.tag }}"
+          VERSION="${TAG#v}"
+          CARGO_VERSION=$(awk -F\" '/^version =/ {print $2; exit}' Cargo.toml)
+          if [[ "$VERSION" != "$CARGO_VERSION" ]]; then
+            echo "Tag $TAG does not match Cargo.toml version $CARGO_VERSION"
+            exit 1
+          fi
+
+      - name: Check required secrets
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ "${{ steps.vars.outputs.publish_crates }}" == "true" ]] && [[ -z "${CARGO_REGISTRY_TOKEN:-}" ]]; then
+            echo "CARGO_REGISTRY_TOKEN is missing but publish_crates=true"
+            exit 1
+          fi
+          if [[ "${{ steps.vars.outputs.update_tap }}" == "true" ]] && [[ -z "${GH_PAT:-}" ]]; then
+            echo "GH_PAT is missing but update_tap=true"
+            exit 1
+          fi
+
+  build-and-release:
+    needs: preflight
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Apple Silicon
           - os: macos-14
             target: aarch64-apple-darwin
             out: skeletor-macos-aarch64-apple-darwin
-          # Intel mac
           - os: macos-14
             target: x86_64-apple-darwin
             out: skeletor-macos-x86_64-apple-darwin
-          # Linux x86_64 (gnu)
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             out: skeletor-ubuntu-x86_64-unknown-linux-gnu
@@ -37,7 +114,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag || github.ref_name }}
+          ref: ${{ needs.preflight.outputs.tag }}
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -58,21 +135,46 @@ jobs:
           shasum -a 256 "${{ matrix.out }}.tar.gz" | awk '{print $1}' > "${{ matrix.out }}.sha256"
 
       - name: Create Release (if missing)
-        id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.tag || github.ref_name }}
+          tag_name: ${{ needs.preflight.outputs.tag }}
           draft: false
-          prerelease: ${{ contains(inputs.tag || github.ref_name, '-') }}
+          prerelease: ${{ contains(needs.preflight.outputs.tag, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload assets
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.tag || github.ref_name }}
+          tag_name: ${{ needs.preflight.outputs.tag }}
           files: |
             ${{ matrix.out }}.tar.gz
             ${{ matrix.out }}.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-crates:
+    needs: [preflight, build-and-release]
+    if: ${{ needs.preflight.outputs.publish_crates == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.tag }}
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --locked
+
+  update-tap:
+    needs: [preflight, build-and-release]
+    if: ${{ needs.preflight.outputs.update_tap == 'true' }}
+    uses: ./.github/workflows/tap-update.yml
+    with:
+      tag: ${{ needs.preflight.outputs.tag }}
+    secrets:
+      GH_PAT: ${{ secrets.GH_PAT }}
