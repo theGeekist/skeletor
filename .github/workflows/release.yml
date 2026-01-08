@@ -20,7 +20,7 @@ jobs:
             target: aarch64-apple-darwin
             out: skeletor-macos-aarch64-apple-darwin
           # Intel mac
-          - os: macos-13
+          - os: macos-14
             target: x86_64-apple-darwin
             out: skeletor-macos-x86_64-apple-darwin
           # Linux x86_64 (gnu)
