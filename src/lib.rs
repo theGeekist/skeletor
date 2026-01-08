@@ -119,7 +119,7 @@ pub fn build_cli() -> Command {
                 .arg(
                     Arg::new("config")
                         .value_name("CONFIG_FILE")
-                        .help("YAML configuration file (defaults to .skeletorrc)")
+                        .help("YAML configuration file (default: .skeletorrc)")
                         .index(1),
                 )
                 .arg(
@@ -127,26 +127,26 @@ pub fn build_cli() -> Command {
                         .short('o')
                         .long("output")
                         .value_name("DIR")
-                        .help("Output directory where files will be created (defaults to current directory)"),
+                        .help("Output directory where files will be created (default: current directory)"),
                 )
                 .arg(
                     Arg::new("overwrite")
                         .long("overwrite")
-                        .help("Overwrite existing files if they already exist")
+                        .help("Overwrite existing files if they already exist (default: off)")
                         .action(ArgAction::SetTrue),
                 )
                 .arg(
                     Arg::new("dry_run")
                         .short('d')
                         .long("dry-run")
-                        .help("Preview changes without writing files (summary by default)")
+                        .help("Preview changes without writing files (default: off; summary by default)")
                         .action(ArgAction::SetTrue),
                 )
                 .arg(
                     Arg::new("verbose")
                         .short('v')
                         .long("verbose")
-                        .help("Show full operation listing during dry-run")
+                        .help("Show full operation listing (default: off; affects dry-run and apply output)")
                         .action(ArgAction::SetTrue),
                 ),
         )
@@ -164,19 +164,19 @@ pub fn build_cli() -> Command {
                         .short('o')
                         .long("output")
                         .value_name("FILE")
-                        .help("Save snapshot YAML to a file (defaults to .skeletorrc)"),
+                        .help("Save snapshot YAML to a file (default: .skeletorrc)"),
                 )
                 .arg(
                     Arg::new("stdout")
                         .long("stdout")
-                        .help("Print snapshot YAML to stdout instead of writing to a file")
+                        .help("Print snapshot YAML to stdout instead of writing to a file (default: write to file)")
                         .action(ArgAction::SetTrue)
                         .conflicts_with("output"),
                 )
                 .arg(
-                    Arg::new("include_contents")
-                        .long("include-contents")
-                        .help("Include file contents for text files (binary files will be empty)")
+                    Arg::new("exclude_contents")
+                        .long("exclude-contents")
+                        .help("Exclude file contents (default: include contents; binary files still detected)")
                         .action(ArgAction::SetTrue),
                 )
                 .arg(
@@ -184,28 +184,28 @@ pub fn build_cli() -> Command {
                         .short('i')
                         .long("ignore")
                         .value_name("PATTERN_OR_FILE")
-                        .help("Exclude files from snapshot (can be used multiple times)\n  • Patterns: \"*.log\", \"target/*\", \"node_modules/\" (QUOTE THEM!)\n  • Files: \".gitignore\", \".dockerignore\" (auto-detected)")
+                        .help("Exclude files from snapshot (default: none; can be used multiple times)\n  • Patterns: \"*.log\", \"target/*\", \"node_modules/\" (QUOTE THEM!)\n  • Files: \".gitignore\", \".dockerignore\" (auto-detected)")
                         .action(ArgAction::Append),
                 )
                 .arg(
                     Arg::new("ignore_file")
                         .long("ignore-file")
                         .value_name("FILE")
-                        .help("Read ignore patterns from a file (use multiple times)")
+                        .help("Read ignore patterns from a file (default: none; use multiple times)")
                         .action(ArgAction::Append),
                 )
                 .arg(
                     Arg::new("verbose")
                         .short('v')
                         .long("verbose")
-                        .help("Show detailed matching and file processing info")
+                        .help("Show detailed matching and file processing info (default: off)")
                         .action(ArgAction::SetTrue),
                 )
                 .arg(
                     Arg::new("dry_run")
                         .short('d')
                         .long("dry-run")
-                        .help("Preview snapshot without writing files (summary by default)")
+                        .help("Preview snapshot without writing files (default: off; summary by default)")
                         .action(ArgAction::SetTrue),
                 )
                 .arg(
@@ -213,7 +213,7 @@ pub fn build_cli() -> Command {
                         .short('n')
                         .long("note")
                         .value_name("NOTE")
-                        .help("Attach a user-defined note to the snapshot"),
+                        .help("Attach a user-defined note to the snapshot (default: none)"),
                 ),
         )
         .subcommand(
@@ -222,7 +222,7 @@ pub fn build_cli() -> Command {
                 .arg(
                     Arg::new("config")
                         .value_name("CONFIG_FILE")
-                        .help("YAML configuration file to inspect (defaults to .skeletorrc)")
+                        .help("YAML configuration file to inspect (default: .skeletorrc)")
                         .index(1),
                 ),
         )

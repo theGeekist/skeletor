@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
+### Changed
+- Clarified CLI flag defaults and verbose behavior in help text
+- Documented apply and snapshot defaults consistently in the README
+
 ## [0.3.9] - 2026-01-08
 
 ### Added

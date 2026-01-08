@@ -74,6 +74,13 @@ skeletor apply --dry-run --verbose
 skeletor apply my-template.yml --dry-run --verbose
 ```
 
+**Common Options (Apply)**
+- `config.yml` → Use a custom config file (default: `.skeletorrc`)
+- `-o ./path` → Output directory (default: current directory)
+- `--dry-run` → Preview changes (default: off; summary by default)
+- `--verbose` → Show full operation listing (default: off; affects dry-run and apply output)
+- `--overwrite` → Overwrite existing files (default: off)
+
 ## Installation
 
 ### Option 1: Install via Script (Linux/macOS)
@@ -140,14 +147,14 @@ skeletor snapshot --dry-run --verbose .
 ```
 
 **Common Options**
-- `-o custom.yml` → Save snapshot to file (defaults to `.skeletorrc`)
-- `--stdout` → Print snapshot YAML to stdout instead of writing a file
-- `-i "*.log"` → Exclude files based on patterns (can be used multiple times)
-- `-i .gitignore` → Use .gitignore file patterns for exclusion (auto-detected)
-- `--ignore-file .gitignore` → Explicitly read ignore patterns from a file
-- `-n "Initial snapshot"` → Add custom notes to the snapshot
-- `--include-contents` → Include file contents for text files (binary files will be empty)
-- `--verbose` → Show detailed ignore pattern matching and file processing info
+- `-o custom.yml` → Save snapshot to file (default: `.skeletorrc`)
+- `--stdout` → Print snapshot YAML to stdout instead of writing a file (default: write to file)
+- `-i "*.log"` → Exclude files based on patterns (default: none; can be used multiple times)
+- `-i .gitignore` → Use .gitignore file patterns for exclusion (default: none; auto-detected)
+- `--ignore-file .gitignore` → Explicitly read ignore patterns from a file (default: none)
+- `-n "Initial snapshot"` → Add custom notes to the snapshot (default: none)
+- `--exclude-contents` → Exclude file contents (default: include contents; binary files still detected)
+- `--verbose` → Show detailed ignore pattern matching and file processing info (default: off)
 
 ## Info Mode
 Display metadata from a `.skeletorrc` file.
