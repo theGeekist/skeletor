@@ -537,9 +537,12 @@ mod tests {
         let (yaml_structure, _) = traverse_directory(test_dir, test_dir, false, Some(&globset), false).unwrap();
 
         if let Value::Mapping(map) = yaml_structure {
-            let src = map.get(&Value::String("src".into())).and_then(Value::as_mapping).unwrap();
-            assert!(src.contains_key(&Value::String("keep.rs".into())));
-            assert!(!src.contains_key(&Value::String("ignore.txt".into())));
+            let src = map
+                .get(Value::String("src".into()))
+                .and_then(Value::as_mapping)
+                .unwrap();
+            assert!(src.contains_key(Value::String("keep.rs".into())));
+            assert!(!src.contains_key(Value::String("ignore.txt".into())));
         } else {
             panic!("Expected a YAML mapping");
         }
