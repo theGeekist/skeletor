@@ -110,25 +110,34 @@ jobs:
             end
           end
           RUBY
-          sed -i '' \
-            -e "s|__HOMEPAGE__|$HOMEPAGE|g" \
-            -e "s|__MAC_ARM_URL__|${{ steps.rel.outputs.mac_arm_url }}|g" \
-            -e "s|__MAC_ARM_SHA__|${{ steps.sums.outputs.mac_arm }}|g" \
-            -e "s|__MAC_X64_URL__|${{ steps.rel.outputs.mac_x64_url }}|g" \
-            -e "s|__MAC_X64_SHA__|${{ steps.sums.outputs.mac_x64 }}|g" \
-            -e "s|__LNX_X64_URL__|${{ steps.rel.outputs.lnx_x64_url }}|g" \
-            -e "s|__LNX_X64_SHA__|${{ steps.sums.outputs.lnx_x64 }}|g" \
-            "out/${{ env.FORMULA_PATH }}" || \
-          sed -i \
-            -e "s|__HOMEPAGE__|$HOMEPAGE|g" \
-            -e "s|__MAC_ARM_URL__|${{ steps.rel.outputs.mac_arm_url }}|g" \
-            -e "s|__MAC_ARM_SHA__|${{ steps.sums.outputs.mac_arm }}|g" \
-            -e "s|__MAC_X64_URL__|${{ steps.rel.outputs.mac_x64_url }}|g" \
-            -e "s|__MAC_X64_SHA__|${{ steps.sums.outputs.mac_x64 }}|g" \
-            -e "s|__LNX_X64_URL__|${{ steps.rel.outputs.lnx_x64_url }}|g" \
-            -e "s|__LNX_X64_SHA__|${{ steps.sums.outputs.lnx_x64 }}|g" \
-            "out/${{ env.FORMULA_PATH }}"
+          python - <<'PY'
+          from pathlib import Path
+          import os
+
+          path = Path("out/${{ env.FORMULA_PATH }}")
+          text = path.read_text()
+          replacements = {
+              "__HOMEPAGE__": os.environ["HOMEPAGE"],
+              "__MAC_ARM_URL__": os.environ["MAC_ARM_URL"],
+              "__MAC_ARM_SHA__": os.environ["MAC_ARM_SHA"],
+              "__MAC_X64_URL__": os.environ["MAC_X64_URL"],
+              "__MAC_X64_SHA__": os.environ["MAC_X64_SHA"],
+              "__LNX_X64_URL__": os.environ["LNX_X64_URL"],
+              "__LNX_X64_SHA__": os.environ["LNX_X64_SHA"],
+          }
+          for key, value in replacements.items():
+              text = text.replace(key, value)
+          path.write_text(text)
+          PY
           echo "branch=tap/update-${TAG}" >> "$GITHUB_OUTPUT"
+        env:
+          HOMEPAGE: https://github.com/${{ env.SRC_OWNER }}/${{ env.SRC_REPO }}
+          MAC_ARM_URL: ${{ steps.rel.outputs.mac_arm_url }}
+          MAC_ARM_SHA: ${{ steps.sums.outputs.mac_arm }}
+          MAC_X64_URL: ${{ steps.rel.outputs.mac_x64_url }}
+          MAC_X64_SHA: ${{ steps.sums.outputs.mac_x64 }}
+          LNX_X64_URL: ${{ steps.rel.outputs.lnx_x64_url }}
+          LNX_X64_SHA: ${{ steps.sums.outputs.lnx_x64 }}
 
       - name: Push PR to tap
         env:
@@ -136,6 +145,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          [[ -n "${GH_TOKEN:-}" ]] || { echo "GH_PAT is missing"; exit 1; }
           BRANCH='${{ steps.formula.outputs.branch }}'
           git clone "https://github.com/${{ env.TAP_OWNER }}/${{ env.TAP_REPO }}.git" tap
           cd tap
