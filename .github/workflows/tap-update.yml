@@ -155,10 +155,9 @@ jobs:
         run: |
           set -Eeuo pipefail
           [[ -n "${GH_TOKEN:-}" ]] || { echo "GH_PAT is missing"; exit 1; }
-          BRANCH='${{ steps.formula.outputs.branch }}'
           git clone "https://github.com/${{ env.TAP_OWNER }}/${{ env.TAP_REPO }}.git" tap
           cd tap
-          git checkout -b "$BRANCH"
+          git checkout main
           mkdir -p "$(dirname '${{ env.FORMULA_PATH }}')"
           cp "../out/${{ env.FORMULA_PATH }}" "${{ env.FORMULA_PATH }}"
           git add "${{ env.FORMULA_PATH }}"
@@ -167,5 +166,4 @@ jobs:
             exit 0
           fi
           git -c user.name="skeletor-bot" -c user.email="skeletor-bot@users.noreply.github.com" commit -m "skeletor: update to ${{ steps.rel.outputs.tag }}"
-          git push "https://${GH_TOKEN}@github.com/${{ env.TAP_OWNER }}/${{ env.TAP_REPO }}.git" "$BRANCH"
-          gh pr create --repo "${{ env.TAP_OWNER }}/${{ env.TAP_REPO }}" --base main --head "$BRANCH" --title "skeletor: ${{ steps.rel.outputs.tag }}" --body "Automated update."
+          git push "https://${GH_TOKEN}@github.com/${{ env.TAP_OWNER }}/${{ env.TAP_REPO }}.git" main
