@@ -95,7 +95,7 @@ jobs:
           fi
 
   build-and-release:
-    needs: preflight
+    needs: [preflight, create-release]
     strategy:
       fail-fast: false
       matrix:
@@ -134,15 +134,6 @@ jobs:
           tar -C dist -czf "${{ matrix.out }}.tar.gz" "${{ matrix.out }}"
           shasum -a 256 "${{ matrix.out }}.tar.gz" | awk '{print $1}' > "${{ matrix.out }}.sha256"
 
-      - name: Create Release (if missing)
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.preflight.outputs.tag }}
-          draft: false
-          prerelease: ${{ contains(needs.preflight.outputs.tag, '-') }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Upload assets
         uses: softprops/action-gh-release@v2
         with:
@@ -150,6 +141,23 @@ jobs:
           files: |
             ${{ matrix.out }}.tar.gz
             ${{ matrix.out }}.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  create-release:
+    needs: preflight
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.tag }}
+
+      - name: Create Release (if missing)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.preflight.outputs.tag }}
+          draft: false
+          prerelease: ${{ contains(needs.preflight.outputs.tag, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
