@@ -135,14 +135,16 @@ jobs:
           shasum -a 256 "${{ matrix.out }}.tar.gz" | awk '{print $1}' > "${{ matrix.out }}.sha256"
 
       - name: Upload assets
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.preflight.outputs.tag }}
-          files: |
-            ${{ matrix.out }}.tar.gz
-            ${{ matrix.out }}.sha256
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          TAG="${{ needs.preflight.outputs.tag }}"
+          gh release upload "$TAG" \
+            "${{ matrix.out }}.tar.gz" \
+            "${{ matrix.out }}.sha256" \
+            --clobber
 
   create-release:
     needs: preflight
