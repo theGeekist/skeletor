@@ -1,5 +1,5 @@
 {
-  "name": "@skeletor/darwin-x64",
+  "name": "@geekist/skeletor-darwin-x64",
   "version": "0.3.10",
   "description": "darwin-x64 binary for skeletor",
   "os": [

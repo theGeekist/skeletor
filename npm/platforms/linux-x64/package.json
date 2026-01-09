@@ -1,5 +1,5 @@
 {
-  "name": "@skeletor/linux-x64",
+  "name": "@geekist/skeletor-linux-x64",
   "version": "0.3.10",
   "description": "linux-x64 binary for skeletor",
   "os": [
