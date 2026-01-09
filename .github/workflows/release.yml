@@ -15,6 +15,11 @@ on:
         required: false
         default: true
         type: boolean
+      publish_npm:
+        description: "Publish to npm"
+        required: false
+        default: true
+        type: boolean
       update_tap:
         description: "Update Homebrew tap"
         required: false
@@ -31,6 +36,7 @@ jobs:
     outputs:
       tag: ${{ steps.vars.outputs.tag }}
       publish_crates: ${{ steps.vars.outputs.publish_crates }}
+      publish_npm: ${{ steps.vars.outputs.publish_npm }}
       update_tap: ${{ steps.vars.outputs.update_tap }}
     steps:
       - uses: actions/checkout@v4
@@ -47,10 +53,14 @@ jobs:
           [[ -n "$TAG" ]] || { echo "Missing tag"; exit 1; }
 
           PUBLISH="${{ inputs.publish_crates }}"
+          PUBLISH_NPM="${{ inputs.publish_npm }}"
           UPDATE_TAP="${{ inputs.update_tap }}"
 
           if [[ -z "$PUBLISH" ]]; then
             PUBLISH=true
+          fi
+          if [[ -z "$PUBLISH_NPM" ]]; then
+            PUBLISH_NPM=true
           fi
           if [[ -z "$UPDATE_TAP" ]]; then
             UPDATE_TAP=true
@@ -59,6 +69,7 @@ jobs:
           {
             echo "tag=$TAG"
             echo "publish_crates=$PUBLISH"
+            echo "publish_npm=$PUBLISH_NPM"
             echo "update_tap=$UPDATE_TAP"
           } >> "$GITHUB_OUTPUT"
 
@@ -241,7 +252,7 @@ jobs:
 
   publish-npm:
     needs: [preflight, build-and-release]
-    if: ${{ needs.preflight.outputs.publish_crates == 'true' }}
+    if: ${{ needs.preflight.outputs.publish_npm == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
