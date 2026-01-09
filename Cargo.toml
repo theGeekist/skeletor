@@ -14,7 +14,7 @@ categories = ["command-line-utilities", "development-tools"]
 keywords = ["cli", "scaffolding", "codegen", "automation", "rust"]
 
 [dependencies]
-chrono = "0.4.39"
+time = { version = "0.3.36", features = ["formatting"] }
 clap = {version = "4.5.20", features = ["derive"]}
 env_logger = "0.11.5"
 globset = "=0.4.16"
@@ -44,3 +44,8 @@ pre-release-replacements = [
   {file="CHANGELOG.md", search="Unreleased", replace="{{version}}"},
   {file="CHANGELOG.md", search="ReleaseDate", replace="{{date}}"},
 ]
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

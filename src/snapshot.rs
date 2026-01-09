@@ -4,7 +4,8 @@ use crate::config::{default_file_path, read_config};
 use crate::errors::SkeletorError;
 use crate::output::{DefaultReporter, SimpleSnapshotResult, Reporter};
 use crate::tasks::{compute_stats, traverse_directory, Task};
-use chrono::Utc;
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 use clap::ArgMatches;
 use log::info;
 use serde_yaml::{Mapping, Value};
@@ -181,7 +182,9 @@ fn build_snapshot(
     files_count: usize,
     dirs_count: usize,
 ) -> Result<Value, SkeletorError> {
-    let now = Utc::now().to_rfc3339();
+    let now = OffsetDateTime::now_utc()
+        .format(&Rfc3339)
+        .map_err(|e| SkeletorError::Config(e.to_string()))?;
     let mut created = now.clone();
 
     // Preserve "created" timestamp if output file exists
