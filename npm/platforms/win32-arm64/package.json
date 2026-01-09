@@ -1,6 +1,6 @@
 {
   "name": "@geekist/skeletor-win32-arm64",
-  "version": "0.3.12",
+  "version": "0.3.13",
   "description": "win32-arm64 binary for skeletor",
   "os": [
     "win32"
