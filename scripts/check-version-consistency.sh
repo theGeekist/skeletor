@@ -92,7 +92,7 @@ fi
 
 # Allow release-in-progress: changelog already bumped to Cargo.toml version
 CARGO_VERSION=$(awk -F\" '/^version =/ {print $2; exit}' Cargo.toml)
-if [ "$MISSING_UNRELEASED" -eq 1 ] && [ "$CHANGELOG_VERSION" = "$CARGO_VERSION" ]; then
+if [ "$CHANGELOG_VERSION" = "$CARGO_VERSION" ]; then
     NEWEST=$(printf '%s\n' "$LATEST_VERSION" "$CHANGELOG_VERSION" | sort -V | tail -n1)
     if [ "$NEWEST" = "$CHANGELOG_VERSION" ] && [ "$CHANGELOG_VERSION" != "$LATEST_VERSION" ]; then
         print_status $YELLOW "⚠️  Release in progress: changelog version $CHANGELOG_VERSION matches Cargo.toml"
