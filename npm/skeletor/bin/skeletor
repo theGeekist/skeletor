@@ -48,13 +48,21 @@ function getBinaryPath() {
   } catch (e) { }
 
   console.error(`Could not locate binary for ${packageName}`);
-  console.error(`Please Ensure that ${packageName} is installed.`);
+  console.error(`Please ensure that ${packageName} is installed.`);
   process.exit(1);
 }
 
 const binPath = getBinaryPath();
 const child = spawn(binPath, process.argv.slice(2), { stdio: 'inherit' });
 
-child.on('close', (code) => {
-  process.exit(code);
+child.on('close', (code, signal) => {
+  if (code !== null) {
+    process.exit(code);
+  } else {
+    if (signal) {
+      console.error(`skeletor process closed with signal: ${signal}`);
+      process.exit(1);
+    }
+    process.exit(1);
+  }
 });

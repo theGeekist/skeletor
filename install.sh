@@ -128,14 +128,21 @@ chmod +x "${BIN_PATH}"
 INSTALL_DIR="/usr/local/bin"
 USE_SUDO=false
 
-if [[ ! -w "/usr/local/bin" ]] && [[ "${EUID}" -ne 0 ]]; then
-  # If /usr/local/bin is not writable and we are not root, try ~/.local/bin
+if [[ "${EUID}" -eq 0 ]]; then
+  # We are root, so we should install to /usr/local/bin
+  if [[ ! -d "${INSTALL_DIR}" ]]; then
+    mkdir -p "${INSTALL_DIR}"
+  fi
+  # Root is always writable to /usr/local/bin if it exists/was created
+elif [[ ! -w "${INSTALL_DIR}" ]]; then
+  # Check if we can write to /usr/local/bin, if not switch to local bin
+  # Note: if /usr/local/bin doesn't exist, -w fails, so we fall here
   INSTALL_DIR="${HOME}/.local/bin"
   mkdir -p "${INSTALL_DIR}"
 else
-  # /usr/local/bin exists/writable or we are root
+  # /usr/local/bin exists and is writable by current non-root user (rare but possible)
   if [[ ! -w "${INSTALL_DIR}" ]]; then
-    USE_SUDO=true
+     USE_SUDO=true
   fi
 fi
 
