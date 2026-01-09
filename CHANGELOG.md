@@ -320,6 +320,6 @@ let result = apply_config(&config, Path::new("./output"), false, false)?;
 [0.3.5]: https://github.com/theGeekist/skeletor/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/theGeekist/skeletor/compare/v0.3.2...v0.3.4
 [0.3.2]: https://github.com/theGeekist/skeletor/compare/v0.3.1...v0.3.2
-[0.3.1]: https://github.com/thegeekist/skeletor/releases/tag/v0.3.1
-[0.3.0]: https://github.com/thegeekist/skeletor/releases/tag/v0.3.0
-[0.2.23]: https://github.com/thegeekist/skeletor/releases/tag/v0.2.23
+[0.3.1]: https://github.com/theGeekist/skeletor/releases/tag/v0.3.1
+[0.3.0]: https://github.com/theGeekist/skeletor/releases/tag/v0.3.0
+[0.2.23]: https://github.com/theGeekist/skeletor/releases/tag/v0.2.23

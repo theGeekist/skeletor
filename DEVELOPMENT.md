@@ -93,7 +93,7 @@ The CHANGELOG.md follows Keep a Changelog format with cargo-release automation:
 
 <!-- next-url -->
 [Unreleased]: https://github.com/theGeekist/skeletor/compare/v0.3.0...HEAD  
-[0.3.0]: https://github.com/thegeekist/skeletor/releases/tag/v0.3.0
+[0.3.0]: https://github.com/theGeekist/skeletor/releases/tag/v0.3.0
 ```
 
 ## 🧪 Development Setup
