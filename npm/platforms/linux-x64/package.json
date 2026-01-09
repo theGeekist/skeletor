@@ -1,0 +1,14 @@
+{
+  "name": "@skeletor/linux-x64",
+  "version": "0.3.10",
+  "description": "linux-x64 binary for skeletor",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "files": [
+    "bin"
+  ]
+}
