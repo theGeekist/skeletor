@@ -1,0 +1,27 @@
+{
+  "name": "@geekist/skeletor-linux-arm64",
+  "version": "0.3.10",
+  "description": "linux-arm64 binary for skeletor",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "files": [
+    "bin"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/theGeekist/skeletor.git"
+  },
+  "author": "Jason Joseph Nathan <jjnathanjr@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/theGeekist/skeletor/issues"
+  },
+  "homepage": "https://github.com/theGeekist/skeletor#readme",
+  "publishConfig": {
+    "access": "public"
+  }
+}

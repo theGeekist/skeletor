@@ -33,4 +33,15 @@ pre-release-replacements = [
   {file="CHANGELOG.md", search="\\.\\.\\.HEAD", replace="...{{tag_name}}", exactly=1},
   {file="CHANGELOG.md", search="<!-- next-header -->", replace="<!-- next-header -->\n\n## [Unreleased] - ReleaseDate", exactly=1},
   {file="CHANGELOG.md", search="<!-- next-url -->", replace="<!-- next-url -->\n[Unreleased]: https://github.com/theGeekist/skeletor/compare/{{tag_name}}...HEAD", exactly=1},
+  # Sync version in main package.json
+  {file="npm/skeletor/package.json", search='"version": "[0-9.]+"', replace='"version": "{{version}}"', exactly=1},
+  # Sync optionalDependencies versions in main package.json
+  {file="npm/skeletor/package.json", search='"@geekist/skeletor-(.*)": "[0-9.]+"', replace='"@geekist/skeletor-$1": "{{version}}"', exactly=6},
+  # Sync version in platform package.json files
+  {file="npm/platforms/darwin-arm64/package.json", search='"version": "[0-9.]+"', replace='"version": "{{version}}"', exactly=1},
+  {file="npm/platforms/darwin-x64/package.json", search='"version": "[0-9.]+"', replace='"version": "{{version}}"', exactly=1},
+  {file="npm/platforms/linux-x64/package.json", search='"version": "[0-9.]+"', replace='"version": "{{version}}"', exactly=1},
+  {file="npm/platforms/linux-arm64/package.json", search='"version": "[0-9.]+"', replace='"version": "{{version}}"', exactly=1},
+  {file="npm/platforms/win32-x64/package.json", search='"version": "[0-9.]+"', replace='"version": "{{version}}"', exactly=1},
+  {file="npm/platforms/win32-arm64/package.json", search='"version": "[0-9.]+"', replace='"version": "{{version}}"', exactly=1},
 ]

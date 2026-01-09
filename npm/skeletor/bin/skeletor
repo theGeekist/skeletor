@@ -1,0 +1,68 @@
+#!/usr/bin/env node
+
+const { spawn } = require('child_process');
+const path = require('path');
+const fs = require('fs');
+
+const PLATFORMS = {
+  'darwin-arm64': '@geekist/skeletor-darwin-arm64',
+  'darwin-x64': '@geekist/skeletor-darwin-x64',
+  'linux-x64': '@geekist/skeletor-linux-x64',
+  'linux-arm64': '@geekist/skeletor-linux-arm64',
+  'win32-x64': '@geekist/skeletor-win32-x64',
+  'win32-arm64': '@geekist/skeletor-win32-arm64',
+};
+
+const platformKey = `${process.platform}-${process.arch}`;
+
+function getBinaryPath() {
+  const packageName = PLATFORMS[platformKey];
+  if (!packageName) {
+    console.error(`Unsupported platform: ${platformKey}`);
+    process.exit(1);
+  }
+
+  try {
+    // Look for the binary in the installed optional dependency
+    // The binary is expected to be at: node_modules/@skeletor/<platform>/bin/skeletor
+    const installDir = path.dirname(require.resolve(`${packageName}/package.json`));
+    const ext = process.platform === 'win32' ? '.exe' : '';
+    const binaryPath = path.join(installDir, 'bin', 'skeletor' + ext);
+
+    if (fs.existsSync(binaryPath)) {
+      return binaryPath;
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // Fallback for local development or if resolution fails
+  // Try to find it relative to this script if we are in the monorepo structure
+  // This might need adjustment depending on how exactly things are laid out when linked
+  try {
+    const ext = process.platform === 'win32' ? '.exe' : '';
+    const localBinaryPath = path.resolve(__dirname, '../../platforms', platformKey, 'bin', 'skeletor' + ext);
+    if (fs.existsSync(localBinaryPath)) {
+      return localBinaryPath;
+    }
+  } catch (e) { }
+
+  console.error(`Could not locate binary for ${packageName}`);
+  console.error(`Please ensure that ${packageName} is installed.`);
+  process.exit(1);
+}
+
+const binPath = getBinaryPath();
+const child = spawn(binPath, process.argv.slice(2), { stdio: 'inherit' });
+
+child.on('close', (code, signal) => {
+  if (code !== null) {
+    process.exit(code);
+  } else {
+    if (signal) {
+      console.error(`skeletor process closed with signal: ${signal}`);
+      process.exit(1);
+    }
+    process.exit(1);
+  }
+});
