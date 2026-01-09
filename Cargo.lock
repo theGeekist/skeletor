@@ -495,7 +495,7 @@ dependencies = [
 
 [[package]]
 name = "skeletor"
-version = "0.3.10"
+version = "0.3.11"
 dependencies = [
  "clap",
  "env_logger",
