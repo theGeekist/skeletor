@@ -6,12 +6,12 @@
     "skeletor": "bin/skeletor"
   },
   "optionalDependencies": {
-    "@skeletor/darwin-arm64": "0.3.10",
-    "@skeletor/darwin-x64": "0.3.10",
-    "@skeletor/linux-x64": "0.3.10",
-    "@skeletor/linux-arm64": "0.3.10",
-    "@skeletor/win32-x64": "0.3.10",
-    "@skeletor/win32-arm64": "0.3.10"
+    "@geekist/skeletor-darwin-arm64": "0.3.10",
+    "@geekist/skeletor-darwin-x64": "0.3.10",
+    "@geekist/skeletor-linux-x64": "0.3.10",
+    "@geekist/skeletor-linux-arm64": "0.3.10",
+    "@geekist/skeletor-win32-x64": "0.3.10",
+    "@geekist/skeletor-win32-arm64": "0.3.10"
   },
   "scripts": {
     "postinstall": "node scripts/postinstall.js"

@@ -92,10 +92,10 @@ curl -fsSL https://raw.githubusercontent.com/theGeekist/skeletor/main/install.sh
 ### Option 2: ![NPM](https://img.shields.io/badge/NPM-000000?style=flat-square&logo=npm&logoColor=white)
 ```bash
 # Install globally
-npm install -g skeletor
+npm install -g @geekist/skeletor
 
 # Use via npx without installing
-npx skeletor apply
+npx @geekist/skeletor apply
 ```
 
 ### Option 3: ![Homebrew](https://img.shields.io/badge/Homebrew-000000?style=flat-square&logo=homebrew&logoColor=white)

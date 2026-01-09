@@ -1,5 +1,5 @@
 {
-  "name": "@skeletor/win32-x64",
+  "name": "@geekist/skeletor-win32-x64",
   "version": "0.3.10",
   "description": "win32-x64 binary for skeletor",
   "os": [

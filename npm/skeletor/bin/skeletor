@@ -5,12 +5,12 @@ const path = require('path');
 const fs = require('fs');
 
 const PLATFORMS = {
-  'darwin-arm64': '@skeletor/darwin-arm64',
-  'darwin-x64': '@skeletor/darwin-x64',
-  'linux-x64': '@skeletor/linux-x64',
-  'linux-arm64': '@skeletor/linux-arm64',
-  'win32-x64': '@skeletor/win32-x64',
-  'win32-arm64': '@skeletor/win32-arm64',
+  'darwin-arm64': '@geekist/skeletor-darwin-arm64',
+  'darwin-x64': '@geekist/skeletor-darwin-x64',
+  'linux-x64': '@geekist/skeletor-linux-x64',
+  'linux-arm64': '@geekist/skeletor-linux-arm64',
+  'win32-x64': '@geekist/skeletor-win32-x64',
+  'win32-arm64': '@geekist/skeletor-win32-arm64',
 };
 
 const platformKey = `${process.platform}-${process.arch}`;
