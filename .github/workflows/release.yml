@@ -93,6 +93,7 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
           GH_PAT: ${{ secrets.GH_PAT }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -102,6 +103,10 @@ jobs:
           fi
           if [[ "${{ steps.vars.outputs.update_tap }}" == "true" ]] && [[ -z "${GH_PAT:-}" ]]; then
             echo "GH_PAT is missing but update_tap=true"
+            exit 1
+          fi
+          if [[ "${{ steps.vars.outputs.publish_npm }}" == "true" ]] && [[ -z "${NPM_TOKEN:-}" ]]; then
+            echo "NPM_TOKEN is missing but publish_npm=true"
             exit 1
           fi
 
