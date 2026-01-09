@@ -77,6 +77,10 @@ jobs:
         shell: bash
         run: scripts/check-version-consistency.sh
 
+      - name: Check NPM version consistency
+        shell: bash
+        run: scripts/check-npm-versions.sh "${{ steps.vars.outputs.tag }}"
+
       - name: Validate tag matches Cargo.toml
         shell: bash
         run: |

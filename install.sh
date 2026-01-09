@@ -73,25 +73,36 @@ TMP_DIR="$(mktemp -d)"; trap 'rm -rf "$TMP_DIR"' EXIT
 
 echo "🔽 Downloading skeletor ${VERSION} for ${OS_STR} (${ARCH_TRIPLE})"
 curl -fSL "${URL}" -o "${TMP_DIR}/${ASSET}"
-curl -fSL "${CHECKSUM_URL}" -o "${TMP_DIR}/${CHECKSUM_ASSET}"
+curl -fSL "${URL}" -o "${TMP_DIR}/${ASSET}"
 
-# Checksum verification
-echo "🔐 Verifying checksum..."
-EXPECTED_SUM="$(cat "${TMP_DIR}/${CHECKSUM_ASSET}")"
-if command -v shasum >/dev/null 2>&1; then
-  ACTUAL_SUM="$(shasum -a 256 "${TMP_DIR}/${ASSET}" | awk '{print $1}')"
-elif command -v sha256sum >/dev/null 2>&1; then
-  ACTUAL_SUM="$(sha256sum "${TMP_DIR}/${ASSET}" | awk '{print $1}')"
+# Check if checksum file exists before downloading
+if curl -fsI "${CHECKSUM_URL}" >/dev/null 2>&1; then
+  curl -fSL "${CHECKSUM_URL}" -o "${TMP_DIR}/${CHECKSUM_ASSET}"
+  HAS_CHECKSUM=true
 else
-  echo "⚠️  Missing 'shasum' or 'sha256sum', skipping checksum verification."
-  ACTUAL_SUM=""
+  echo "⚠️  Checksum file not found. Skipping verification."
+  HAS_CHECKSUM=false
 fi
 
-if [[ -n "${ACTUAL_SUM}" ]] && [[ "${ACTUAL_SUM}" != "${EXPECTED_SUM}" ]]; then
-  echo "❌ Checksum mismatch!"
-  echo "   Expected: ${EXPECTED_SUM}"
-  echo "   Actual:   ${ACTUAL_SUM}"
-  exit 1
+# Checksum verification
+if [[ "${HAS_CHECKSUM}" == "true" ]]; then
+  echo "🔐 Verifying checksum..."
+  EXPECTED_SUM="$(cat "${TMP_DIR}/${CHECKSUM_ASSET}")"
+  if command -v shasum >/dev/null 2>&1; then
+    ACTUAL_SUM="$(shasum -a 256 "${TMP_DIR}/${ASSET}" | awk '{print $1}')"
+  elif command -v sha256sum >/dev/null 2>&1; then
+    ACTUAL_SUM="$(sha256sum "${TMP_DIR}/${ASSET}" | awk '{print $1}')"
+  else
+    echo "⚠️  Missing 'shasum' or 'sha256sum', skipping checksum verification."
+    ACTUAL_SUM=""
+  fi
+
+  if [[ -n "${ACTUAL_SUM}" ]] && [[ "${ACTUAL_SUM}" != "${EXPECTED_SUM}" ]]; then
+    echo "❌ Checksum mismatch!"
+    echo "   Expected: ${EXPECTED_SUM}"
+    echo "   Actual:   ${ACTUAL_SUM}"
+    exit 1
+  fi
 fi
 
 echo "📦 Extracting…"
@@ -141,9 +152,8 @@ elif [[ ! -w "${INSTALL_DIR}" ]]; then
   mkdir -p "${INSTALL_DIR}"
 else
   # /usr/local/bin exists and is writable by current non-root user (rare but possible)
-  if [[ ! -w "${INSTALL_DIR}" ]]; then
-     USE_SUDO=true
-  fi
+  # We already checked ! -w above, so if we are here, it IS writable.
+  :
 fi
 
 echo "🚀 Installing to ${INSTALL_DIR}..."

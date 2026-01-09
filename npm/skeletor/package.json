@@ -13,18 +13,16 @@
     "@geekist/skeletor-win32-x64": "0.3.10",
     "@geekist/skeletor-win32-arm64": "0.3.10"
   },
-  "scripts": {
-  },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/thegeekist/skeletor.git"
+    "url": "git+https://github.com/theGeekist/skeletor.git"
   },
   "author": "Jason Joseph Nathan <jjnathanjr@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/thegeekist/skeletor/issues"
+    "url": "https://github.com/theGeekist/skeletor/issues"
   },
-  "homepage": "https://github.com/thegeekist/skeletor#readme",
+  "homepage": "https://github.com/theGeekist/skeletor#readme",
   "publishConfig": {
     "access": "public"
   }
