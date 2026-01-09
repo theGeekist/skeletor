@@ -103,13 +103,27 @@ jobs:
           - os: macos-14
             target: aarch64-apple-darwin
             out: skeletor-macos-aarch64-apple-darwin
+            npm_platform: darwin-arm64
           - os: macos-14
             target: x86_64-apple-darwin
             out: skeletor-macos-x86_64-apple-darwin
+            npm_platform: darwin-x64
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             out: skeletor-ubuntu-x86_64-unknown-linux-gnu
-
+            npm_platform: linux-x64
+          - os: ubuntu-22.04
+            target: aarch64-unknown-linux-gnu
+            out: skeletor-ubuntu-aarch64-unknown-linux-gnu
+            npm_platform: linux-arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            out: skeletor-windows-x86_64-pc-windows-msvc
+            npm_platform: win32-x64
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            out: skeletor-windows-aarch64-pc-windows-msvc
+            npm_platform: win32-arm64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -129,8 +143,18 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "dist/${{ matrix.out }}"
+          
+          # Handle potential .exe extension for Windows
           BIN="target/${{ matrix.target }}/release/skeletor"
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            BIN="${BIN}.exe"
+          fi
+          
           cp "$BIN" "dist/${{ matrix.out }}/skeletor"
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+             mv "dist/${{ matrix.out }}/skeletor" "dist/${{ matrix.out }}/skeletor.exe"
+          fi
+
           tar -C dist -czf "${{ matrix.out }}.tar.gz" "${{ matrix.out }}"
           shasum -a 256 "${{ matrix.out }}.tar.gz" | awk '{print $1}' > "${{ matrix.out }}.sha256"
 
@@ -145,6 +169,37 @@ jobs:
             "${{ matrix.out }}.tar.gz" \
             "${{ matrix.out }}.sha256" \
             --clobber
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Publish platform-specific package
+        if: ${{ matrix.npm_platform != '' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Move binary to the correct location
+          PKG_DIR="npm/platforms/${{ matrix.npm_platform }}"
+          mkdir -p "$PKG_DIR/bin"
+          
+          BIN="target/${{ matrix.target }}/release/skeletor"
+           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            BIN="${BIN}.exe"
+          fi
+          cp "$BIN" "$PKG_DIR/bin/skeletor"
+
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+             mv "$PKG_DIR/bin/skeletor" "$PKG_DIR/bin/skeletor.exe"
+          fi
+          
+          # Publish
+          cd "$PKG_DIR"
+          npm publish --access public
 
   create-release:
     needs: preflight
@@ -183,6 +238,28 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: cargo publish --locked
+
+  publish-npm:
+    needs: [preflight, build-and-release]
+    if: ${{ needs.preflight.outputs.publish_crates == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.tag }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          registry-url: 'https://registry.npmjs.org'
+      
+      - name: Publish main package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          cd npm/skeletor
+          npm publish --access public
 
   update-tap:
     needs: [preflight, build-and-release]

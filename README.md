@@ -83,26 +83,35 @@ skeletor apply my-template.yml --dry-run --verbose
 
 ## Installation
 
-### Option 1: Install via Script (Linux/macOS)
+### Option 1: ![Bash](https://img.shields.io/badge/Bash-000000?style=flat-square&logo=gnu-bash&logoColor=white) Install via Script
 ```bash
 curl -fsSL https://raw.githubusercontent.com/theGeekist/skeletor/main/install.sh | bash
 ```
 **tip:** Review the script before running to ensure security.  
 
-### Option 2: Homebrew (macOS & Linux)
+### Option 2: ![NPM](https://img.shields.io/badge/NPM-000000?style=flat-square&logo=npm&logoColor=white)
+```bash
+# Install globally
+npm install -g skeletor
+
+# Use via npx without installing
+npx skeletor apply
+```
+
+### Option 3: ![Homebrew](https://img.shields.io/badge/Homebrew-000000?style=flat-square&logo=homebrew&logoColor=white)
 ```bash
 brew tap theGeekist/skeletor
 brew install skeletor
 ```
 Easiest method if Homebrew is installed. 
 
-### Option 3: Cargo (Recommended for Rust Users)
+### Option 4: ![Cargo](https://img.shields.io/badge/Cargo-000000?style=flat-square&logo=rust&logoColor=white)
 ```bash
 cargo install skeletor
 ```
 Installs directly from crates.io.
 
-### Option 4: Build from Source 
+### Option 5: ![Git](https://img.shields.io/badge/Source-000000?style=flat-square&logo=git&logoColor=white)
 ```bash
 git clone https://github.com/theGeekist/skeletor.git
 cd skeletor

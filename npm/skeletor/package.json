@@ -1,0 +1,29 @@
+{
+  "name": "@geekist/skeletor",
+  "version": "0.3.10",
+  "description": "A blazing-fast scaffolding tool with YAML-driven snapshots.",
+  "bin": {
+    "skeletor": "bin/skeletor"
+  },
+  "optionalDependencies": {
+    "@skeletor/darwin-arm64": "0.3.10",
+    "@skeletor/darwin-x64": "0.3.10",
+    "@skeletor/linux-x64": "0.3.10",
+    "@skeletor/linux-arm64": "0.3.10",
+    "@skeletor/win32-x64": "0.3.10",
+    "@skeletor/win32-arm64": "0.3.10"
+  },
+  "scripts": {
+    "postinstall": "node scripts/postinstall.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thegeekist/skeletor.git"
+  },
+  "author": "Jason Joseph Nathan <jjnathanjr@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/thegeekist/skeletor/issues"
+  },
+  "homepage": "https://github.com/thegeekist/skeletor#readme"
+}

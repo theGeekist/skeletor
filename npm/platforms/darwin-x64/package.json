@@ -1,0 +1,14 @@
+{
+  "name": "@skeletor/darwin-x64",
+  "version": "0.3.10",
+  "description": "darwin-x64 binary for skeletor",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "files": [
+    "bin"
+  ]
+}

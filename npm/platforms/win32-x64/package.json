@@ -1,0 +1,14 @@
+{
+  "name": "@skeletor/win32-x64",
+  "version": "0.3.10",
+  "description": "win32-x64 binary for skeletor",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "files": [
+    "bin"
+  ]
+}
