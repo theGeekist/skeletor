@@ -1,6 +1,6 @@
 {
   "name": "@geekist/skeletor-linux-arm64",
-  "version": "0.3.15",
+  "version": "0.3.16",
   "description": "linux-arm64 binary for skeletor",
   "os": [
     "linux"

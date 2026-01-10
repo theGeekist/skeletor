@@ -9,8 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
+## [0.3.16] - ReleaseDate
 
-## [Unreleased] - ReleaseDate
+
+## [0.3.16] - ReleaseDate
 
 ## [0.3.15] - ReleaseDate
 
@@ -333,7 +335,8 @@ let result = apply_config(&config, Path::new("./output"), false, false)?;
 ```
 
 <!-- next-url -->
-[Unreleased]: https://github.com/theGeekist/skeletor/compare/v0.3.15...HEAD
+[Unreleased]: https://github.com/theGeekist/skeletor/compare/v0.3.16...HEAD
+[0.3.16]: https://github.com/theGeekist/skeletor/compare/v0.3.15...v0.3.16
 [0.3.15]: https://github.com/theGeekist/skeletor/compare/v0.3.14...v0.3.15
 [0.3.14]: https://github.com/theGeekist/skeletor/compare/v0.3.13...v0.3.14
 [0.3.13]: https://github.com/theGeekist/skeletor/compare/v0.3.12...v0.3.13
