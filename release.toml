@@ -17,7 +17,7 @@ sign-tag = false     # Set to true if you have GPG configured
 pre-release-hook = ["sh", "-c", "chmod +x scripts/check-version-consistency.sh && ./scripts/check-version-consistency.sh && cargo test --all-features && cargo clippy --all-targets -- -D warnings"]
 
 # Publish settings
-publish = true
+publish = false
 verify = true  # Always verify build before publishing
 
 # Dependencies
